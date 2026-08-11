@@ -1,3 +1,6 @@
+<?php
+$commitHash = get_git_commit_hash();
+?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -95,7 +98,10 @@
     </div>
 
     <footer>
-      <p>&copy; 2026 Ternis EDV &bull; <a href="/">tstatus.de</a> &bull; Dedicated Service Monitoring for <?= htmlspecialchars($monitor['name']) ?></p>
+      <p>
+        &copy; 2026 Ternis EDV &bull; <a href="/">tstatus.de</a> &bull; Dedicated Service Monitoring for <?= htmlspecialchars($monitor['name']) ?> &bull; 
+        Commit: <a href="https://go.tstatus.de/gh-latest" target="_blank" rel="noopener" style="font-family: monospace; color: var(--accent-primary); border-bottom: 1px dashed var(--accent-primary);"><?= htmlspecialchars($commitHash) ?></a>
+      </p>
     </footer>
 
   </div>

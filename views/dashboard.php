@@ -1,0 +1,213 @@
+<?php
+$commitHash = get_git_commit_hash();
+?>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tstatus.de | Ternis Statuspage - System Operational Status</title>
+  <meta name="description" content="Real-time operational status and uptime monitoring for Ternis EDV domains (ternis-edv.de, thosted.de, tstatic.de, ternis.dev, ternismail.de), databases, and linux servers.">
+  <meta name="robots" content="index, follow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+  <!-- Navigation Header -->
+  <header>
+    <div class="container nav-content">
+      <div class="brand-section">
+        <div class="brand-logo">T</div>
+        <div class="brand-title-wrap">
+          <h1>tstatus.de</h1>
+          <p>Ternis Statuspage &bull; Real-time Monitoring Platform</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btnOpenAddMonitor" class="btn btn-sm">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Add Monitor
+        </button>
+        <button id="btnOpenAddIncident" class="btn btn-sm">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          Report Incident
+        </button>
+        <button id="btnRefresh" class="btn btn-sm btn-primary">
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Check Now
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    
+    <!-- Global Operational Status Banner -->
+    <div id="globalStatusBanner" class="global-status-banner">
+      <!-- Dynamically populated by app.js -->
+    </div>
+
+    <!-- System Metrics Overview -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="label">
+          <span>30-Day Avg Uptime</span>
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--status-operational)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        </div>
+        <div class="value" id="metricUptime">99.96%</div>
+      </div>
+      <div class="metric-card">
+        <div class="label">
+          <span>Average Latency</span>
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--accent-primary)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <div class="value" id="metricLatency">24 ms</div>
+      </div>
+      <div class="metric-card">
+        <div class="label">
+          <span>Monitored Targets</span>
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--text-sub)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        </div>
+        <div class="value" id="metricMonitorsCount">11</div>
+      </div>
+      <div class="metric-card">
+        <div class="label">
+          <span>Active Incidents</span>
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--status-degraded)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </div>
+        <div class="value" id="metricIncidentsCount">2</div>
+      </div>
+    </div>
+
+    <!-- Search & Category Filters -->
+    <div class="controls-bar">
+      <div class="search-filter-group">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search target domain, IP, or service name...">
+        <select id="categorySelect" class="category-filter">
+          <option value="all">All Categories</option>
+          <option value="Ternis Core Services">Ternis Core Services</option>
+          <option value="CDN & Asset Network">CDN &amp; Asset Network</option>
+          <option value="Infrastructure">Infrastructure</option>
+          <option value="Communication Services">Communication Services</option>
+          <option value="Databases & Storage">Databases &amp; Storage</option>
+          <option value="Linux Servers">Linux Servers</option>
+        </select>
+      </div>
+      <div style="font-size: 0.8125rem; color: var(--text-muted);">
+        Auto-refresh in <strong id="refreshTimer" style="color: var(--text-main);">30s</strong> &bull; Updated <span id="lastUpdated">14:52</span>
+      </div>
+    </div>
+
+    <!-- Monitored Categories Container -->
+    <div id="categoriesContainer">
+      <!-- Category groups & monitor cards injected here by app.js -->
+    </div>
+
+    <!-- Incidents & Maintenance Timeline Section -->
+    <div class="incidents-section">
+      <div class="section-header">
+        <span>Incidents &amp; Maintenance Notices</span>
+      </div>
+      <div id="incidentsContainer">
+        <!-- Incidents list injected by app.js -->
+      </div>
+    </div>
+
+    <!-- Footer with Commit ID and Shortlink -->
+    <footer>
+      <p>
+        &copy; 2026 Ternis EDV &bull; <a href="https://tstatus.de" target="_blank">tstatus.de</a> &bull; Open-source Status Platform &bull; 
+        Commit: <a href="https://go.tstatus.de/gh-latest" target="_blank" rel="noopener" style="font-family: monospace; color: var(--accent-primary); border-bottom: 1px dashed var(--accent-primary);"><?= htmlspecialchars($commitHash) ?></a>
+      </p>
+    </footer>
+
+  </div>
+
+  <!-- Modal: Add New Monitor -->
+  <div id="addMonitorModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Add Monitored Target</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form id="addMonitorForm">
+        <div class="form-group">
+          <label class="form-label">Service / Target Name</label>
+          <input type="text" name="name" class="form-control" placeholder="e.g. thosted.de (Ternis Hosted Portal)" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select name="category" class="form-control">
+              <option value="Ternis Core Services">Ternis Core Services</option>
+              <option value="CDN & Asset Network">CDN & Asset Network</option>
+              <option value="Infrastructure">Infrastructure</option>
+              <option value="Communication Services">Communication Services</option>
+              <option value="Databases & Storage">Databases & Storage</option>
+              <option value="Linux Servers">Linux Servers</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Monitor Type</label>
+            <select name="type" class="form-control">
+              <option value="website">HTTP / Website Domain</option>
+              <option value="database">Database Host / Port</option>
+              <option value="server">Linux Server / Ping / TCP</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Target URL / Host / IP</label>
+          <input type="text" name="target" class="form-control" placeholder="e.g. https://thosted.de or 10.0.8.20:3306" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Check Interval (Seconds)</label>
+          <input type="number" name="interval" class="form-control" value="30" min="5" max="300">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+          <button type="button" class="btn btn-cancel-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Target</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Incident -->
+  <div id="addIncidentModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Report New Incident</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <form id="addIncidentForm">
+        <div class="form-group">
+          <label class="form-label">Incident Title</label>
+          <input type="text" name="title" class="form-control" placeholder="e.g. Scheduled Network Upgrade on ternis.net" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Current Status</label>
+          <select name="status" class="form-control">
+            <option value="investigating">Investigating</option>
+            <option value="identified">Identified</option>
+            <option value="monitoring">Monitoring</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Update Message</label>
+          <textarea name="message" class="form-control" rows="3" placeholder="Describe the current state or incident updates..." required></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+          <button type="button" class="btn btn-cancel-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Publish Incident Update</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
