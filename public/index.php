@@ -20,18 +20,31 @@ if ($host === 'go.tstatus.de' || str_starts_with($uri, '/gh-latest') || str_star
     exit;
 }
 
-// Handle REST API requests
-if (str_starts_with($uri, '/api/info')) {
-    require __DIR__ . '/../api/info.php';
-    exit;
-} elseif (str_starts_with($uri, '/api/monitors')) {
-    require __DIR__ . '/../api/monitors.php';
-    exit;
-} elseif (str_starts_with($uri, '/api/incidents')) {
-    require __DIR__ . '/../api/incidents.php';
-    exit;
-} elseif (str_starts_with($uri, '/api/check')) {
-    require __DIR__ . '/../api/check.php';
+// Route all API v1 calls
+if (str_starts_with($uri, '/api/v1/')) {
+    $path = parse_url($uri, PHP_URL_PATH) ?? '';
+    $endpoint = preg_replace('#^/api/v1/?#', '', $path);
+    $endpoint = trim($endpoint, '/');
+
+    if ($endpoint === 'info' || str_starts_with($endpoint, 'info/')) {
+        require __DIR__ . '/../api/v1/info.php';
+        exit;
+    } elseif ($endpoint === 'monitors' || str_starts_with($endpoint, 'monitors/')) {
+        require __DIR__ . '/../api/v1/monitors.php';
+        exit;
+    } elseif ($endpoint === 'incidents' || str_starts_with($endpoint, 'incidents/')) {
+        require __DIR__ . '/../api/v1/incidents.php';
+        exit;
+    } elseif ($endpoint === 'check' || str_starts_with($endpoint, 'check/')) {
+        require __DIR__ . '/../api/v1/check.php';
+        exit;
+    }
+}
+
+// Backward compatibility redirects for legacy /api/* calls
+if (str_starts_with($uri, '/api/')) {
+    $newUri = str_replace('/api/', '/api/v1/', $uri);
+    header("Location: {$newUri}", true, 307);
     exit;
 }
 

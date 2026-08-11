@@ -1,12 +1,13 @@
 /**
- * tstatus.de - Ternis Statuspage Pure Client-Side Application
- * Powered 100% by REST APIs (/api/info.php, /api/monitors.php, /api/incidents.php, /api/check.php)
+ * tstatus.de - Ternis Statuspage Application Logic
+ * Exclusively Powered by /api/v1/ REST Endpoints
  */
 
-const API_INFO = '/api/info.php';
-const API_MONITORS = '/api/monitors.php';
-const API_INCIDENTS = '/api/incidents.php';
-const API_CHECK = '/api/check.php';
+const API_V1 = '/api/v1';
+const API_INFO = `${API_V1}/info`;
+const API_MONITORS = `${API_V1}/monitors`;
+const API_INCIDENTS = `${API_V1}/incidents`;
+const API_CHECK = `${API_V1}/check`;
 
 const STORAGE_KEY_THEME = 'tstatus_theme_v1';
 
@@ -25,7 +26,6 @@ class StatusApp {
     this.bindEvents();
     this.fetchAppInfo();
 
-    // Check if we are on dedicated service detail page (/s/{slug})
     const path = window.location.pathname;
     if (path.startsWith('/s/')) {
       const slug = path.split('/s/')[1];
@@ -161,12 +161,12 @@ class StatusApp {
     try {
       const res = await fetch(API_INFO);
       const data = await res.json();
-      if (data.success) {
-        this.info = data;
+      if (data.success && data.data) {
+        this.info = data.data;
         if (this.footerTextEl) {
           this.footerTextEl.innerHTML = `
-            &copy; 2026 Ternis EDV &bull; <a href="https://tstatus.de" target="_blank">tstatus.de</a> &bull; Open-source Status Platform &bull; 
-            Commit: <a href="${data.github_latest_url}" target="_blank" rel="noopener" style="font-family: monospace; color: var(--accent-primary); border-bottom: 1px dashed var(--accent-primary);">${data.commit_hash}</a>
+            &copy; 2026 Ternis EDV &bull; <a href="https://tstatus.de" target="_blank">tstatus.de</a> &bull; Open-source Status Platform (${this.info.api_version}) &bull; 
+            Commit: <a href="${this.info.github_latest_url}" target="_blank" rel="noopener" style="font-family: monospace; color: var(--accent-primary); border-bottom: 1px dashed var(--accent-primary);">${this.info.commit_hash}</a>
           `;
         }
       }
@@ -177,16 +177,16 @@ class StatusApp {
     try {
       const resMon = await fetch(API_MONITORS);
       const dataMon = await resMon.json();
-      if (dataMon.success && dataMon.monitors) {
-        this.monitors = dataMon.monitors;
+      if (dataMon.success && dataMon.data) {
+        this.monitors = dataMon.data;
       }
     } catch (e) {}
 
     try {
       const resInc = await fetch(API_INCIDENTS);
       const dataInc = await resInc.json();
-      if (dataInc.success && dataInc.incidents) {
-        this.incidents = dataInc.incidents;
+      if (dataInc.success && dataInc.data) {
+        this.incidents = dataInc.data;
       }
     } catch (e) {}
 
@@ -197,8 +197,8 @@ class StatusApp {
     try {
       const res = await fetch(`${API_MONITORS}?slug=${encodeURIComponent(slug)}`);
       const data = await res.json();
-      if (data.success && data.monitor) {
-        this.renderServiceDetail(data.monitor);
+      if (data.success && data.data) {
+        this.renderServiceDetail(data.data);
       } else {
         if (this.serviceCardContainerEl) {
           this.serviceCardContainerEl.innerHTML = `<div style="text-align:center; padding:4rem; color:var(--status-outage);">Service '${slug}' not found. <a href="/">Return to statuspage overview</a></div>`;
@@ -206,7 +206,7 @@ class StatusApp {
       }
     } catch (e) {
       if (this.serviceCardContainerEl) {
-        this.serviceCardContainerEl.innerHTML = `<div style="text-align:center; padding:4rem; color:var(--status-outage);">Failed to load service detail from API.</div>`;
+        this.serviceCardContainerEl.innerHTML = `<div style="text-align:center; padding:4rem; color:var(--status-outage);">Failed to load service detail from API v1.</div>`;
       }
     }
   }
@@ -263,7 +263,7 @@ class StatusApp {
       <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; margin-bottom: 3rem; box-shadow: var(--shadow-main);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
           <h3 style="font-size: 1.25rem; font-weight:700; color:var(--text-main);">45-Day Performance History</h3>
-          <span style="font-size: 0.875rem; color:var(--text-muted);">Updated via API</span>
+          <span style="font-size: 0.875rem; color:var(--text-muted);">Updated via /api/v1/monitors</span>
         </div>
 
         <div class="timeline-bars" style="height: 48px; gap: 4px;">
