@@ -20,8 +20,11 @@ if ($host === 'go.tstatus.de' || str_starts_with($uri, '/gh-latest') || str_star
     exit;
 }
 
-// Handle REST API requests cleanly
-if (str_starts_with($uri, '/api/monitors')) {
+// Handle REST API requests
+if (str_starts_with($uri, '/api/info')) {
+    require __DIR__ . '/../api/info.php';
+    exit;
+} elseif (str_starts_with($uri, '/api/monitors')) {
     require __DIR__ . '/../api/monitors.php';
     exit;
 } elseif (str_starts_with($uri, '/api/incidents')) {
@@ -32,11 +35,16 @@ if (str_starts_with($uri, '/api/monitors')) {
     exit;
 }
 
-$router = new Router();
+// Serve dedicated service detail shell for /s/{slug}
+if (preg_match('#^/s/([a-zA-Z0-9\-_]+)$#', parse_url($uri, PHP_URL_PATH) ?? '')) {
+    require __DIR__ . '/service.html';
+    exit;
+}
 
 // Main Statuspage Dashboard Route
+$router = new Router();
 $router->get('/', function() {
-    require __DIR__ . '/../views/dashboard.php';
+    require __DIR__ . '/index.html';
 });
 
 // Dispatch router

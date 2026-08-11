@@ -1,9 +1,9 @@
 /**
- * tstatus.de - Ternis Statuspage Application Logic
- * Powered by PHP & SQLite/MariaDB Backend API with Fallback
- * Features Light & Dark Theme Switching
+ * tstatus.de - Ternis Statuspage Pure Client-Side Application
+ * Powered 100% by REST APIs (/api/info.php, /api/monitors.php, /api/incidents.php, /api/check.php)
  */
 
+const API_INFO = '/api/info.php';
 const API_MONITORS = '/api/monitors.php';
 const API_INCIDENTS = '/api/incidents.php';
 const API_CHECK = '/api/check.php';
@@ -14,6 +14,7 @@ class StatusApp {
   constructor() {
     this.monitors = [];
     this.incidents = [];
+    this.info = null;
     this.filterSearch = '';
     this.filterCategory = 'all';
     this.autoRefreshTimer = null;
@@ -22,8 +23,19 @@ class StatusApp {
 
     this.initElements();
     this.bindEvents();
-    this.fetchData();
-    this.startAutoRefresh();
+    this.fetchAppInfo();
+
+    // Check if we are on dedicated service detail page (/s/{slug})
+    const path = window.location.pathname;
+    if (path.startsWith('/s/')) {
+      const slug = path.split('/s/')[1];
+      if (slug) {
+        this.fetchServiceDetail(slug);
+      }
+    } else {
+      this.fetchData();
+      this.startAutoRefresh();
+    }
   }
 
   initTheme() {
@@ -49,11 +61,9 @@ class StatusApp {
     const btn = document.getElementById('btnThemeToggle');
     if (!btn) return;
     if (this.currentTheme === 'light') {
-      // Moon icon for switching to dark
       btn.innerHTML = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>`;
       btn.title = "Switch to Dark Mode";
     } else {
-      // Sun icon for switching to light
       btn.innerHTML = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>`;
       btn.title = "Switch to Light Mode";
     }
@@ -67,10 +77,12 @@ class StatusApp {
     this.incidentsCountEl = document.getElementById('metricIncidentsCount');
     this.categoriesContainerEl = document.getElementById('categoriesContainer');
     this.incidentsContainerEl = document.getElementById('incidentsContainer');
+    this.serviceCardContainerEl = document.getElementById('serviceCardContainer');
     this.lastUpdatedEl = document.getElementById('lastUpdated');
     this.refreshTimerEl = document.getElementById('refreshTimer');
     this.searchInputEl = document.getElementById('searchInput');
     this.categorySelectEl = document.getElementById('categorySelect');
+    this.footerTextEl = document.getElementById('footerText');
 
     this.addMonitorModalEl = document.getElementById('addMonitorModal');
     this.addIncidentModalEl = document.getElementById('addIncidentModal');
@@ -81,9 +93,7 @@ class StatusApp {
   bindEvents() {
     const btnTheme = document.getElementById('btnThemeToggle');
     if (btnTheme) {
-      btnTheme.addEventListener('click', () => {
-        this.toggleTheme();
-      });
+      btnTheme.addEventListener('click', () => this.toggleTheme());
     }
 
     if (this.searchInputEl) {
@@ -102,23 +112,17 @@ class StatusApp {
 
     const btnRefresh = document.getElementById('btnRefresh');
     if (btnRefresh) {
-      btnRefresh.addEventListener('click', () => {
-        this.checkAllMonitors();
-      });
+      btnRefresh.addEventListener('click', () => this.checkAllMonitors());
     }
 
     const btnAddMon = document.getElementById('btnOpenAddMonitor');
     if (btnAddMon) {
-      btnAddMon.addEventListener('click', () => {
-        this.openModal(this.addMonitorModalEl);
-      });
+      btnAddMon.addEventListener('click', () => this.openModal(this.addMonitorModalEl));
     }
 
     const btnAddInc = document.getElementById('btnOpenAddIncident');
     if (btnAddInc) {
-      btnAddInc.addEventListener('click', () => {
-        this.openModal(this.addIncidentModalEl);
-      });
+      btnAddInc.addEventListener('click', () => this.openModal(this.addIncidentModalEl));
     }
 
     const formAddMon = document.getElementById('addMonitorForm');
@@ -153,11 +157,27 @@ class StatusApp {
     if (modalEl) modalEl.classList.remove('active');
   }
 
+  async fetchAppInfo() {
+    try {
+      const res = await fetch(API_INFO);
+      const data = await res.json();
+      if (data.success) {
+        this.info = data;
+        if (this.footerTextEl) {
+          this.footerTextEl.innerHTML = `
+            &copy; 2026 Ternis EDV &bull; <a href="https://tstatus.de" target="_blank">tstatus.de</a> &bull; Open-source Status Platform &bull; 
+            Commit: <a href="${data.github_latest_url}" target="_blank" rel="noopener" style="font-family: monospace; color: var(--accent-primary); border-bottom: 1px dashed var(--accent-primary);">${data.commit_hash}</a>
+          `;
+        }
+      }
+    } catch (e) {}
+  }
+
   async fetchData() {
     try {
       const resMon = await fetch(API_MONITORS);
       const dataMon = await resMon.json();
-      if (dataMon.success && dataMon.monitors.length) {
+      if (dataMon.success && dataMon.monitors) {
         this.monitors = dataMon.monitors;
       }
     } catch (e) {}
@@ -165,12 +185,97 @@ class StatusApp {
     try {
       const resInc = await fetch(API_INCIDENTS);
       const dataInc = await resInc.json();
-      if (dataInc.success && dataInc.incidents.length) {
+      if (dataInc.success && dataInc.incidents) {
         this.incidents = dataInc.incidents;
       }
     } catch (e) {}
 
     this.render();
+  }
+
+  async fetchServiceDetail(slug) {
+    try {
+      const res = await fetch(`${API_MONITORS}?slug=${encodeURIComponent(slug)}`);
+      const data = await res.json();
+      if (data.success && data.monitor) {
+        this.renderServiceDetail(data.monitor);
+      } else {
+        if (this.serviceCardContainerEl) {
+          this.serviceCardContainerEl.innerHTML = `<div style="text-align:center; padding:4rem; color:var(--status-outage);">Service '${slug}' not found. <a href="/">Return to statuspage overview</a></div>`;
+        }
+      }
+    } catch (e) {
+      if (this.serviceCardContainerEl) {
+        this.serviceCardContainerEl.innerHTML = `<div style="text-align:center; padding:4rem; color:var(--status-outage);">Failed to load service detail from API.</div>`;
+      }
+    }
+  }
+
+  renderServiceDetail(mon) {
+    if (!this.serviceCardContainerEl) return;
+    document.title = `${mon.name} Status | tstatus.de`;
+
+    const barsHtml = (mon.history || []).map(h => `
+      <div class="bar-item ${h.status}" data-tooltip="Day ${h.day}: ${h.status.toUpperCase()} (${h.latency}ms)"></div>
+    `).join('');
+
+    this.serviceCardContainerEl.innerHTML = `
+      <div class="card" style="margin-bottom: 2rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; box-shadow: var(--shadow-main);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
+          <div>
+            <span style="font-size:0.8125rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent-primary); font-weight:600;">
+              ${mon.category}
+            </span>
+            <h1 style="font-size: 2rem; font-weight:700; margin:0.25rem 0 0.5rem 0; color:var(--text-main);">
+              ${mon.name}
+            </h1>
+            <p style="font-family:monospace; color:var(--text-muted); font-size:0.9375rem;">
+              Target: ${mon.target}
+            </p>
+          </div>
+          <div>
+            <span class="status-badge ${mon.status}" style="font-size: 1rem; padding: 0.5rem 1.25rem;">
+              &bull; ${mon.status.toUpperCase()}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="metrics-grid" style="margin-bottom: 2.5rem;">
+        <div class="metric-card">
+          <div class="label">Average Latency</div>
+          <div class="value">${mon.latency} ms</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">30-Day Uptime</div>
+          <div class="value" style="color:var(--status-operational);">${parseFloat(mon.uptime).toFixed(2)}%</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Check Frequency</div>
+          <div class="value">Every ${mon.check_interval}s</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">Service Slug</div>
+          <div class="value" style="font-size: 1.125rem; font-family:monospace; color:var(--text-sub);">/s/${mon.slug}</div>
+        </div>
+      </div>
+
+      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; margin-bottom: 3rem; box-shadow: var(--shadow-main);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
+          <h3 style="font-size: 1.25rem; font-weight:700; color:var(--text-main);">45-Day Performance History</h3>
+          <span style="font-size: 0.875rem; color:var(--text-muted);">Updated via API</span>
+        </div>
+
+        <div class="timeline-bars" style="height: 48px; gap: 4px;">
+          ${barsHtml}
+        </div>
+
+        <div style="display:flex; justify-content:space-between; margin-top: 1rem; font-size: 0.8125rem; color: var(--text-muted);">
+          <span>45 Days Ago</span>
+          <span>Today</span>
+        </div>
+      </div>
+    `;
   }
 
   startAutoRefresh() {
