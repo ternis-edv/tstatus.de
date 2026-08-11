@@ -1,3 +1,6 @@
+<?php
+$commitHash = get_git_commit_hash();
+?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -9,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 
@@ -24,6 +27,9 @@
         </div>
       </div>
       <div class="header-actions">
+        <button id="btnThemeToggle" class="btn btn-sm btn-icon" title="Toggle Light/Dark Theme">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </button>
         <button id="btnOpenAddMonitor" class="btn btn-sm">
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
           Add Monitor
@@ -94,7 +100,7 @@
         </select>
       </div>
       <div style="font-size: 0.8125rem; color: var(--text-muted);">
-        Auto-refresh in <strong id="refreshTimer" style="color: var(--text-main);">30s</strong> &bull; Updated <span id="lastUpdated">14:48</span>
+        Auto-refresh in <strong id="refreshTimer" style="color: var(--text-main);">30s</strong> &bull; Updated <span id="lastUpdated">14:55</span>
       </div>
     </div>
 
@@ -113,9 +119,12 @@
       </div>
     </div>
 
-    <!-- Footer -->
+    <!-- Footer with Commit ID and Shortlink -->
     <footer>
-      <p>&copy; 2026 Ternis EDV &bull; <a href="https://tstatus.de" target="_blank">tstatus.de</a> &bull; Open-source PHP &amp; SQLite/MariaDB Statuspage Platform</p>
+      <p>
+        &copy; 2026 Ternis EDV &bull; <a href="https://tstatus.de" target="_blank">tstatus.de</a> &bull; Open-source Status Platform &bull; 
+        Commit: <a href="https://go.tstatus.de/gh-latest" target="_blank" rel="noopener" style="font-family: monospace; color: var(--accent-primary); border-bottom: 1px dashed var(--accent-primary);"><?= htmlspecialchars($commitHash) ?></a>
+      </p>
     </footer>
 
   </div>
@@ -202,6 +211,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>
