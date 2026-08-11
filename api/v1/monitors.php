@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 header('Content-Type: application/json');
 
+use Tstatus\Database;
+use Tstatus\Middleware\AuthMiddleware;
+
 $pdo = Database::getConnection();
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -63,8 +66,10 @@ if ($method === 'GET') {
     }
 } elseif ($method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-
     $action = $input['action'] ?? 'create';
+
+    // Protect write operations with AuthMiddleware
+    AuthMiddleware::handle();
 
     if ($action === 'delete') {
         $id = $input['id'] ?? $_GET['id'] ?? '';
@@ -93,6 +98,9 @@ if ($method === 'GET') {
 
     echo json_encode(['success' => true, 'data' => ['id' => $id, 'slug' => $slug, 'name' => $name]]);
 } elseif ($method === 'DELETE') {
+    // Protect DELETE operation
+    AuthMiddleware::handle();
+
     $id = $pathSlug ?? $_GET['id'] ?? '';
     if ($id) {
         $stmt = $pdo->prepare("DELETE FROM monitors WHERE id = ? OR slug = ?");

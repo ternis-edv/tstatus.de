@@ -7,6 +7,9 @@ declare(strict_types=1);
 
 header('Content-Type: application/json');
 
+use Tstatus\Database;
+use Tstatus\Middleware\AuthMiddleware;
+
 $pdo = Database::getConnection();
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -27,6 +30,9 @@ if ($method === 'GET') {
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
 } elseif ($method === 'POST') {
+    // Protect write operations with AuthMiddleware
+    AuthMiddleware::handle();
+
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
 
     $id = 'inc-' . time() . '-' . rand(100, 999);

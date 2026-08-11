@@ -1,7 +1,6 @@
 /**
  * tstatus.de - Ternis Statuspage Application Logic
- * Public Read-Only View by default with optional Admin Mode toggle.
- * Exclusively Powered by /api/v1/ REST Endpoints
+ * Powered by /api/v1/ REST Endpoints with Session & API Authentication
  */
 
 const API_V1 = '/api/v1';
@@ -9,25 +8,26 @@ const API_INFO = `${API_V1}/info`;
 const API_MONITORS = `${API_V1}/monitors`;
 const API_INCIDENTS = `${API_V1}/incidents`;
 const API_CHECK = `${API_V1}/check`;
+const API_AUTH = `${API_V1}/auth`;
 
 const STORAGE_KEY_THEME = 'tstatus_theme_v1';
-const STORAGE_KEY_ADMIN = 'tstatus_admin_mode_v1';
 
 class StatusApp {
   constructor() {
     this.monitors = [];
     this.incidents = [];
     this.info = null;
+    this.user = null;
     this.filterSearch = '';
     this.filterCategory = 'all';
     this.autoRefreshTimer = null;
     this.secondsUntilRefresh = 30;
 
     this.currentTheme = this.initTheme();
-    this.isAdminMode = this.initAdminMode();
 
     this.initElements();
     this.bindEvents();
+    this.checkAuthStatus();
     this.fetchAppInfo();
 
     const path = window.location.pathname;
@@ -54,13 +54,19 @@ class StatusApp {
     return theme;
   }
 
-  initAdminMode() {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('admin') === '1') {
-      localStorage.setItem(STORAGE_KEY_ADMIN, 'true');
-      return true;
+  async checkAuthStatus() {
+    try {
+      const res = await fetch(`${API_AUTH}/me`);
+      const data = await res.json();
+      if (data.success && data.authenticated) {
+        this.user = data.data;
+      } else {
+        this.user = null;
+      }
+    } catch (e) {
+      this.user = null;
     }
-    return localStorage.getItem(STORAGE_KEY_ADMIN) === 'true';
+    this.renderAdminControls();
   }
 
   toggleTheme() {
@@ -71,8 +77,59 @@ class StatusApp {
   }
 
   toggleAdminMode() {
-    this.isAdminMode = !this.isAdminMode;
-    localStorage.setItem(STORAGE_KEY_ADMIN, this.isAdminMode ? 'true' : 'false');
+    if (this.user) {
+      // User is logged in -> logout
+      if (confirm('Log out of Admin Mode?')) {
+        this.handleLogout();
+      }
+    } else {
+      // User is not logged in -> open login modal
+      this.openModal(this.loginModalEl);
+    }
+  }
+
+  async handleLogin(form) {
+    const formData = new FormData(form);
+    const payload = {
+      username: formData.get('username'),
+      password: formData.get('password')
+    };
+
+    const errorEl = document.getElementById('loginErrorMsg');
+    if (errorEl) errorEl.style.display = 'none';
+
+    try {
+      const res = await fetch(`${API_AUTH}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        this.user = data.data;
+        this.closeModal(this.loginModalEl);
+        form.reset();
+        this.renderAdminControls();
+        this.renderMonitors();
+      } else {
+        if (errorEl) {
+          errorEl.textContent = data.error || 'Invalid credentials';
+          errorEl.style.display = 'block';
+        }
+      }
+    } catch (e) {
+      if (errorEl) {
+        errorEl.textContent = 'Login failed. Please try again.';
+        errorEl.style.display = 'block';
+      }
+    }
+  }
+
+  async handleLogout() {
+    try {
+      await fetch(`${API_AUTH}/logout`, { method: 'POST' });
+    } catch (e) {}
+    this.user = null;
     this.renderAdminControls();
     this.renderMonitors();
   }
@@ -93,17 +150,19 @@ class StatusApp {
     const adminGroup = document.getElementById('adminControlsGroup');
     const adminToggleBtn = document.getElementById('btnAdminToggle');
 
+    const isAuthenticated = !!this.user;
+
     if (adminGroup) {
-      adminGroup.style.display = this.isAdminMode ? 'flex' : 'none';
+      adminGroup.style.display = isAuthenticated ? 'flex' : 'none';
     }
 
     if (adminToggleBtn) {
-      if (this.isAdminMode) {
+      if (isAuthenticated) {
         adminToggleBtn.style.color = 'var(--status-operational)';
-        adminToggleBtn.title = 'Admin Mode Active (Click to lock)';
+        adminToggleBtn.title = `Logged in as ${this.user.username} (Click to logout)`;
       } else {
         adminToggleBtn.style.color = 'var(--text-main)';
-        adminToggleBtn.title = 'Unlock Admin Mode';
+        adminToggleBtn.title = 'Admin Authentication (Click to login)';
       }
     }
   }
@@ -123,11 +182,11 @@ class StatusApp {
     this.categorySelectEl = document.getElementById('categorySelect');
     this.footerTextEl = document.getElementById('footerText');
 
+    this.loginModalEl = document.getElementById('loginModal');
     this.addMonitorModalEl = document.getElementById('addMonitorModal');
     this.addIncidentModalEl = document.getElementById('addIncidentModal');
 
     this.renderThemeToggleIcon();
-    this.renderAdminControls();
   }
 
   bindEvents() {
@@ -139,6 +198,14 @@ class StatusApp {
     const btnAdmin = document.getElementById('btnAdminToggle');
     if (btnAdmin) {
       btnAdmin.addEventListener('click', () => this.toggleAdminMode());
+    }
+
+    const formLogin = document.getElementById('loginForm');
+    if (formLogin) {
+      formLogin.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleLogin(e.target);
+      });
     }
 
     if (this.searchInputEl) {
@@ -375,6 +442,8 @@ class StatusApp {
         await this.fetchData();
         this.closeModal(this.addMonitorModalEl);
         form.reset();
+      } else if (res.status === 401) {
+        this.openModal(this.loginModalEl);
       }
     } catch (e) {}
   }
@@ -398,6 +467,8 @@ class StatusApp {
         await this.fetchData();
         this.closeModal(this.addIncidentModalEl);
         form.reset();
+      } else if (res.status === 401) {
+        this.openModal(this.loginModalEl);
       }
     } catch (e) {}
   }
@@ -405,11 +476,15 @@ class StatusApp {
   async deleteMonitor(id) {
     if (confirm('Are you sure you want to remove this monitor?')) {
       try {
-        await fetch(API_MONITORS, {
+        const res = await fetch(API_MONITORS, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'delete', id: id })
         });
+        if (res.status === 401) {
+          this.openModal(this.loginModalEl);
+          return;
+        }
         await this.fetchData();
       } catch (e) {}
     }
@@ -541,7 +616,7 @@ class StatusApp {
 
         const slugPath = `/s/${mon.slug || mon.id}`;
 
-        const deleteButtonHtml = this.isAdminMode ? `
+        const deleteButtonHtml = this.user ? `
           <button class="btn btn-sm btn-delete-mon" data-id="${mon.id}" title="Remove Monitor" style="padding:0.2rem 0.5rem; opacity:0.6;">&times;</button>
         ` : '';
 
@@ -577,7 +652,7 @@ class StatusApp {
           </div>
         `;
 
-        if (this.isAdminMode) {
+        if (this.user) {
           const delBtn = monCard.querySelector('.btn-delete-mon');
           if (delBtn) {
             delBtn.addEventListener('click', (e) => {

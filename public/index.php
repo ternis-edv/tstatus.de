@@ -6,21 +6,23 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../bootstrap.php';
-require_once __DIR__ . '/../includes/router.php';
+
+use Tstatus\Router;
+use Tstatus\Auth;
+
+Auth::initSession();
 
 $uri = $_SERVER['REQUEST_URI'] ?? '/';
 $host = $_SERVER['HTTP_HOST'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
-// Handle go.tstatus.de shortlinks or /gh-latest route
-if ($host === 'go.tstatus.de' || str_starts_with($uri, '/gh-latest') || str_starts_with($uri, '/go/gh-latest')) {
-    $commitHash = get_git_commit_hash();
-    $targetUrl = "https://github.com/ternis-edv/tstatus.de/commit/{$commitHash}";
-    header("Location: {$targetUrl}", true, 302);
+// Handle API v1 auth routes
+if (str_starts_with($uri, '/api/v1/auth')) {
+    require __DIR__ . '/../api/v1/auth.php';
     exit;
 }
 
-// Route all API v1 calls
+// Route API v1 requests
 if (str_starts_with($uri, '/api/v1/')) {
     $path = parse_url($uri, PHP_URL_PATH) ?? '';
     $endpoint = preg_replace('#^/api/v1/?#', '', $path);
@@ -48,17 +50,17 @@ if (str_starts_with($uri, '/api/')) {
     exit;
 }
 
-// Serve dedicated service detail shell for /s/{slug}
-if (preg_match('#^/s/([a-zA-Z0-9\-_]+)$#', parse_url($uri, PHP_URL_PATH) ?? '')) {
-    require __DIR__ . '/service.html';
-    exit;
-}
+$router = new Router();
 
 // Main Statuspage Dashboard Route
-$router = new Router();
 $router->get('/', function() {
     require __DIR__ . '/index.html';
 });
 
+// Dedicated service detail shell route
+$router->get('/s/{slug}', function() {
+    require __DIR__ . '/service.html';
+});
+
 // Dispatch router
-$router->dispatch($uri, $method);
+$router->dispatch($uri, $method, $host);
