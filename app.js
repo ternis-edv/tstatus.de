@@ -1,114 +1,185 @@
 /**
  * tstatus.de - Ternis Statuspage Application Logic
- * Monitors: Websites, Databases/Hosts, Linux Servers, APIs
+ * Powered by PHP & SQLite/MariaDB Backend API with Fallback
+ * Monitors: Websites (ternis-edv.de, thosted.de, tstatic.de...), Databases, Linux Servers
  */
 
-const STORAGE_KEY_MONITORS = 'tstatus_monitors_v1';
-const STORAGE_KEY_INCIDENTS = 'tstatus_incidents_v1';
+const API_MONITORS = 'api/monitors.php';
+const API_INCIDENTS = 'api/incidents.php';
+const API_CHECK = 'api/check.php';
 
-// Initial Demo/Default Monitors Configuration
+const STORAGE_KEY_MONITORS = 'tstatus_monitors_v2';
+const STORAGE_KEY_INCIDENTS = 'tstatus_incidents_v2';
+
+// Fallback initial monitors if PHP API is unavailable
 const DEFAULT_MONITORS = [
   {
-    id: 'mon-web-1',
-    name: 'tstatus.de Public Portal',
-    category: 'Websites & Portals',
-    type: 'website',
-    target: 'https://tstatus.de',
-    interval: 30,
-    status: 'operational',
-    latency: 24,
-    uptime: 99.98,
-    history: generateRandomHistory('operational')
-  },
-  {
-    id: 'mon-web-2',
-    name: 'Ternis EDV Main Website',
-    category: 'Websites & Portals',
+    id: 'mon-101',
+    name: 'ternis-edv.de Main Portal',
+    category: 'Ternis Core Services',
     type: 'website',
     target: 'https://ternis-edv.de',
     interval: 30,
     status: 'operational',
-    latency: 38,
+    latency: 18,
+    uptime: 99.98,
+    history: generateRandomHistory('operational')
+  },
+  {
+    id: 'mon-102',
+    name: 'thosted.de (Ternis Hosted)',
+    category: 'Ternis Core Services',
+    type: 'website',
+    target: 'https://thosted.de',
+    interval: 30,
+    status: 'operational',
+    latency: 22,
     uptime: 99.95,
     history: generateRandomHistory('operational')
   },
   {
-    id: 'mon-db-1',
-    name: 'Primary PostgreSQL Host (db-cluster-01)',
-    category: 'Databases & Storage',
-    type: 'database',
-    target: '10.0.4.12:5432 (PostgreSQL)',
+    id: 'mon-103',
+    name: 'tstatic.de (Static Assets CDN)',
+    category: 'CDN & Asset Network',
+    type: 'website',
+    target: 'https://tstatic.de',
     interval: 15,
     status: 'operational',
-    latency: 4,
-    uptime: 99.99,
-    history: generateRandomHistory('operational')
-  },
-  {
-    id: 'mon-db-2',
-    name: 'Redis Cache Cluster (redis-prod)',
-    category: 'Databases & Storage',
-    type: 'database',
-    target: '10.0.4.50:6379 (Redis)',
-    interval: 15,
-    status: 'operational',
-    latency: 2,
+    latency: 8,
     uptime: 100.0,
     history: generateRandomHistory('operational')
   },
   {
-    id: 'mon-srv-1',
-    name: 'App Node 01 - Linux (Ubuntu 24.04)',
-    category: 'Linux Servers & Infrastructure',
+    id: 'mon-104',
+    name: 'ternis.net (Backbone & DNS)',
+    category: 'Infrastructure',
     type: 'server',
-    target: 'srv-app-01.ternis-edv.de (SSH/Ping)',
-    interval: 20,
+    target: 'ternis.net (DNS/ICMP)',
+    interval: 15,
     status: 'operational',
     latency: 12,
-    uptime: 99.92,
+    uptime: 99.99,
     history: generateRandomHistory('operational')
   },
   {
-    id: 'mon-srv-2',
-    name: 'Backup SAN Host (Linux Debian 12)',
-    category: 'Linux Servers & Infrastructure',
+    id: 'mon-105',
+    name: 'ternis.dev (Developer API)',
+    category: 'Ternis Core Services',
+    type: 'website',
+    target: 'https://ternis.dev',
+    interval: 30,
+    status: 'operational',
+    latency: 35,
+    uptime: 99.91,
+    history: generateRandomHistory('operational')
+  },
+  {
+    id: 'mon-106',
+    name: 'ternismail.de (Mail Server Cluster)',
+    category: 'Communication Services',
     type: 'server',
-    target: 'san-backup-01.local (Ping/TCP 22)',
+    target: 'mail.ternismail.de:587 (SMTP)',
+    interval: 60,
+    status: 'operational',
+    latency: 24,
+    uptime: 99.97,
+    history: generateRandomHistory('operational')
+  },
+  {
+    id: 'mon-107',
+    name: 'ternis.link (URL Redirection)',
+    category: 'Ternis Core Services',
+    type: 'website',
+    target: 'https://ternis.link',
+    interval: 30,
+    status: 'operational',
+    latency: 15,
+    uptime: 99.99,
+    history: generateRandomHistory('operational')
+  },
+  {
+    id: 'mon-108',
+    name: 'db-01.infra-node.de (MariaDB Cluster)',
+    category: 'Databases & Storage',
+    type: 'database',
+    target: '10.0.8.20:3306 (MariaDB)',
+    interval: 15,
+    status: 'operational',
+    latency: 3,
+    uptime: 99.99,
+    history: generateRandomHistory('operational')
+  },
+  {
+    id: 'mon-109',
+    name: 'redis-01.infra-node.de (Redis Cache)',
+    category: 'Databases & Storage',
+    type: 'database',
+    target: '10.0.8.35:6379 (Redis)',
+    interval: 15,
+    status: 'operational',
+    latency: 1,
+    uptime: 100.0,
+    history: generateRandomHistory('operational')
+  },
+  {
+    id: 'mon-110',
+    name: 'srv-linux-01.infra-node.de (App Server)',
+    category: 'Linux Servers',
+    type: 'server',
+    target: 'srv-linux-01.infra-node.de (Linux/SSH)',
+    interval: 30,
+    status: 'operational',
+    latency: 14,
+    uptime: 99.93,
+    history: generateRandomHistory('operational')
+  },
+  {
+    id: 'mon-111',
+    name: 'cloud-node01.de (Edge Gateway)',
+    category: 'Linux Servers',
+    type: 'server',
+    target: 'cloud-node01.de (ICMP Ping)',
     interval: 60,
     status: 'degraded',
-    latency: 145,
-    uptime: 98.45,
+    latency: 140,
+    uptime: 98.60,
     history: generateRandomHistory('degraded')
   }
 ];
 
 const DEFAULT_INCIDENTS = [
   {
-    id: 'inc-101',
-    title: 'Scheduled Storage Maintenance on Backup SAN',
+    id: 'inc-201',
+    title: 'Scheduled Edge Node Network Optimization',
     status: 'monitoring',
     date: 'Aug 11, 2026',
     updates: [
       {
         status: 'monitoring',
-        message: 'Maintenance disk check completed. Performance might be slightly degraded while parity rebuilds.',
-        time: 'Aug 11, 14:15 CEST'
-      },
+        message: 'cloud-node01.de latency optimization in progress.',
+        time: '14:30 CEST'
+      }
+    ]
+  },
+  {
+    id: 'inc-202',
+    title: 'Routine Database Maintenance on MariaDB Cluster',
+    status: 'resolved',
+    date: 'Aug 10, 2026',
+    updates: [
       {
-        status: 'in-progress',
-        message: 'SAN storage routine backup verification in progress.',
-        time: 'Aug 11, 12:00 CEST'
+        status: 'resolved',
+        message: 'MariaDB index rebuild and storage optimization completed cleanly.',
+        time: '04:00 CEST'
       }
     ]
   }
 ];
 
-// Generate 45-day history mockup for uptime bars
 function generateRandomHistory(currentStatus) {
   const days = 45;
   const history = [];
   for (let i = 0; i < days; i++) {
-    // Recent days match current status, older days mostly operational
     if (i === days - 1) {
       history.push({ day: i + 1, status: currentStatus, latency: Math.floor(Math.random() * 30) + 10 });
     } else {
@@ -124,8 +195,8 @@ function generateRandomHistory(currentStatus) {
 
 class StatusApp {
   constructor() {
-    this.monitors = this.loadMonitors();
-    this.incidents = this.loadIncidents();
+    this.monitors = [];
+    this.incidents = [];
     this.filterSearch = '';
     this.filterCategory = 'all';
     this.autoRefreshTimer = null;
@@ -133,34 +204,8 @@ class StatusApp {
 
     this.initElements();
     this.bindEvents();
-    this.render();
+    this.fetchData();
     this.startAutoRefresh();
-  }
-
-  loadMonitors() {
-    const saved = localStorage.getItem(STORAGE_KEY_MONITORS);
-    if (saved) {
-      try { return JSON.parse(saved); } catch(e){}
-    }
-    this.saveMonitors(DEFAULT_MONITORS);
-    return DEFAULT_MONITORS;
-  }
-
-  saveMonitors(data) {
-    localStorage.setItem(STORAGE_KEY_MONITORS, JSON.stringify(data));
-  }
-
-  loadIncidents() {
-    const saved = localStorage.getItem(STORAGE_KEY_INCIDENTS);
-    if (saved) {
-      try { return JSON.parse(saved); } catch(e){}
-    }
-    this.saveIncidents(DEFAULT_INCIDENTS);
-    return DEFAULT_INCIDENTS;
-  }
-
-  saveIncidents(data) {
-    localStorage.setItem(STORAGE_KEY_INCIDENTS, JSON.stringify(data));
   }
 
   initElements() {
@@ -176,13 +221,11 @@ class StatusApp {
     this.searchInputEl = document.getElementById('searchInput');
     this.categorySelectEl = document.getElementById('categorySelect');
 
-    // Modals
     this.addMonitorModalEl = document.getElementById('addMonitorModal');
     this.addIncidentModalEl = document.getElementById('addIncidentModal');
   }
 
   bindEvents() {
-    // Search & Filter
     this.searchInputEl.addEventListener('input', (e) => {
       this.filterSearch = e.target.value.toLowerCase();
       this.renderMonitors();
@@ -193,7 +236,6 @@ class StatusApp {
       this.renderMonitors();
     });
 
-    // Buttons
     document.getElementById('btnRefresh').addEventListener('click', () => {
       this.checkAllMonitors();
     });
@@ -206,7 +248,6 @@ class StatusApp {
       this.openModal(this.addIncidentModalEl);
     });
 
-    // Forms
     document.getElementById('addMonitorForm').addEventListener('submit', (e) => {
       e.preventDefault();
       this.handleAddMonitor(e.target);
@@ -217,7 +258,6 @@ class StatusApp {
       this.handleAddIncident(e.target);
     });
 
-    // Close modals
     document.querySelectorAll('.modal-close, .btn-cancel-modal').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const backdrop = e.target.closest('.modal-backdrop');
@@ -232,6 +272,52 @@ class StatusApp {
 
   closeModal(modalEl) {
     modalEl.classList.remove('active');
+  }
+
+  async fetchData() {
+    try {
+      const resMon = await fetch(API_MONITORS);
+      const dataMon = await resMon.json();
+      if (dataMon.success && dataMon.monitors.length) {
+        this.monitors = dataMon.monitors;
+      } else {
+        this.loadLocalMonitors();
+      }
+    } catch (e) {
+      this.loadLocalMonitors();
+    }
+
+    try {
+      const resInc = await fetch(API_INCIDENTS);
+      const dataInc = await resInc.json();
+      if (dataInc.success && dataInc.incidents.length) {
+        this.incidents = dataInc.incidents;
+      } else {
+        this.loadLocalIncidents();
+      }
+    } catch (e) {
+      this.loadLocalIncidents();
+    }
+
+    this.render();
+  }
+
+  loadLocalMonitors() {
+    const saved = localStorage.getItem(STORAGE_KEY_MONITORS);
+    if (saved) {
+      try { this.monitors = JSON.parse(saved); return; } catch(e){}
+    }
+    this.monitors = DEFAULT_MONITORS;
+    localStorage.setItem(STORAGE_KEY_MONITORS, JSON.stringify(DEFAULT_MONITORS));
+  }
+
+  loadLocalIncidents() {
+    const saved = localStorage.getItem(STORAGE_KEY_INCIDENTS);
+    if (saved) {
+      try { this.incidents = JSON.parse(saved); return; } catch(e){}
+    }
+    this.incidents = DEFAULT_INCIDENTS;
+    localStorage.setItem(STORAGE_KEY_INCIDENTS, JSON.stringify(DEFAULT_INCIDENTS));
   }
 
   startAutoRefresh() {
@@ -253,80 +339,138 @@ class StatusApp {
     const btn = document.getElementById('btnRefresh');
     if (btn) btn.disabled = true;
 
+    try {
+      const res = await fetch(API_CHECK);
+      const data = await res.json();
+      if (data.success) {
+        await this.fetchData();
+      } else {
+        await this.clientSideCheckFallback();
+      }
+    } catch (e) {
+      await this.clientSideCheckFallback();
+    }
+
+    if (btn) btn.disabled = false;
+    this.secondsUntilRefresh = 30;
+  }
+
+  async clientSideCheckFallback() {
     for (let mon of this.monitors) {
       if (mon.type === 'website' && mon.target.startsWith('http')) {
         const start = performance.now();
         try {
-          // Attempt real fetch with mode no-cors for external domain reachability
           await fetch(mon.target, { mode: 'no-cors', cache: 'no-cache' });
-          const duration = Math.round(performance.now() - start);
-          mon.latency = duration;
+          mon.latency = Math.round(performance.now() - start);
           mon.status = 'operational';
         } catch (err) {
           mon.status = 'degraded';
         }
       } else {
-        // Simulated latency fluctuation for DB / Server targets
         const variation = Math.floor(Math.random() * 6) - 3;
-        mon.latency = Math.max(2, mon.latency + variation);
+        mon.latency = Math.max(1, mon.latency + variation);
       }
     }
-
-    this.saveMonitors(this.monitors);
+    localStorage.setItem(STORAGE_KEY_MONITORS, JSON.stringify(this.monitors));
     this.render();
-    if (btn) btn.disabled = false;
-    this.secondsUntilRefresh = 30;
   }
 
-  handleAddMonitor(form) {
+  async handleAddMonitor(form) {
     const formData = new FormData(form);
-    const newMon = {
-      id: 'mon-' + Date.now(),
+    const payload = {
       name: formData.get('name'),
       category: formData.get('category'),
       type: formData.get('type'),
       target: formData.get('target'),
-      interval: parseInt(formData.get('interval') || '30'),
+      interval: parseInt(formData.get('interval') || '30')
+    };
+
+    try {
+      const res = await fetch(API_MONITORS, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        await this.fetchData();
+        this.closeModal(this.addMonitorModalEl);
+        form.reset();
+        return;
+      }
+    } catch (e) {}
+
+    // Fallback to local storage
+    const newMon = {
+      id: 'mon-' + Date.now(),
+      ...payload,
       status: 'operational',
-      latency: Math.floor(Math.random() * 30) + 10,
+      latency: 15,
       uptime: 100.0,
       history: generateRandomHistory('operational')
     };
-
     this.monitors.push(newMon);
-    this.saveMonitors(this.monitors);
+    localStorage.setItem(STORAGE_KEY_MONITORS, JSON.stringify(this.monitors));
     this.closeModal(this.addMonitorModalEl);
     form.reset();
     this.render();
   }
 
-  handleAddIncident(form) {
+  async handleAddIncident(form) {
     const formData = new FormData(form);
-    const newInc = {
-      id: 'inc-' + Date.now(),
+    const payload = {
       title: formData.get('title'),
       status: formData.get('status'),
+      message: formData.get('message')
+    };
+
+    try {
+      const res = await fetch(API_INCIDENTS, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        await this.fetchData();
+        this.closeModal(this.addIncidentModalEl);
+        form.reset();
+        return;
+      }
+    } catch (e) {}
+
+    const newInc = {
+      id: 'inc-' + Date.now(),
+      title: payload.title,
+      status: payload.status,
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       updates: [
         {
-          status: formData.get('status'),
-          message: formData.get('message'),
+          status: payload.status,
+          message: payload.message,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' CEST'
         }
       ]
     };
-
     this.incidents.unshift(newInc);
-    this.saveIncidents(this.incidents);
+    localStorage.setItem(STORAGE_KEY_INCIDENTS, JSON.stringify(this.incidents));
     this.closeModal(this.addIncidentModalEl);
     form.reset();
     this.render();
   }
 
-  deleteMonitor(id) {
+  async deleteMonitor(id) {
     if (confirm('Are you sure you want to remove this monitor?')) {
+      try {
+        await fetch(API_MONITORS, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', id: id })
+        });
+      } catch (e) {}
+
       this.monitors = this.monitors.filter(m => m.id !== id);
-      this.saveMonitors(this.monitors);
+      localStorage.setItem(STORAGE_KEY_MONITORS, JSON.stringify(this.monitors));
       this.render();
     }
   }
@@ -382,8 +526,8 @@ class StatusApp {
   renderMetrics() {
     if (!this.monitors.length) return;
     
-    const avgUptime = (this.monitors.reduce((acc, m) => acc + (m.uptime || 99.9), 0) / this.monitors.length).toFixed(2);
-    const avgLatency = Math.round(this.monitors.reduce((acc, m) => acc + (m.latency || 0), 0) / this.monitors.length);
+    const avgUptime = (this.monitors.reduce((acc, m) => acc + (parseFloat(m.uptime) || 99.9), 0) / this.monitors.length).toFixed(2);
+    const avgLatency = Math.round(this.monitors.reduce((acc, m) => acc + (parseInt(m.latency) || 0), 0) / this.monitors.length);
 
     this.uptimeMetricEl.textContent = `${avgUptime}%`;
     this.latencyMetricEl.textContent = `${avgLatency} ms`;
@@ -394,14 +538,11 @@ class StatusApp {
   renderMonitors() {
     this.categoriesContainerEl.innerHTML = '';
 
-    // Group monitors by category
     const categoriesMap = {};
     this.monitors.forEach(mon => {
-      // Search filter check
       if (this.filterSearch && !mon.name.toLowerCase().includes(this.filterSearch) && !mon.target.toLowerCase().includes(this.filterSearch)) {
         return;
       }
-      // Category filter check
       if (this.filterCategory !== 'all' && mon.category !== this.filterCategory) {
         return;
       }
@@ -427,9 +568,9 @@ class StatusApp {
       catSection.className = 'category-group';
 
       let catIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>`;
-      if (catName.includes('Web')) catIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.6 9h16.8M3.6 15h16.8"/></svg>`;
+      if (catName.includes('Core') || catName.includes('Web')) catIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.6 9h16.8M3.6 15h16.8"/></svg>`;
       else if (catName.includes('Database')) catIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>`;
-      else if (catName.includes('Server')) catIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>`;
+      else if (catName.includes('Server') || catName.includes('Infra')) catIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>`;
 
       catSection.innerHTML = `
         <div class="category-header">
@@ -452,7 +593,6 @@ class StatusApp {
         if (mon.type === 'database') typeIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7"/></svg>`;
         else if (mon.type === 'server') typeIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2"/></svg>`;
 
-        // Render timeline bars
         const barsHtml = (mon.history || []).map(h => `
           <div class="bar-item ${h.status}" data-tooltip="Day ${h.day}: ${h.status.toUpperCase()} (${h.latency}ms)"></div>
         `).join('');
@@ -522,7 +662,7 @@ class StatusApp {
       incCard.innerHTML = `
         <div class="incident-card-header">
           <div class="incident-title">${inc.title}</div>
-          <div class="incident-date">${inc.date}</div>
+          <div class="incident-date">${inc.date || inc.date_str}</div>
         </div>
         <div class="incident-timeline">
           ${updatesHtml}
@@ -534,7 +674,6 @@ class StatusApp {
   }
 }
 
-// Initialize on DOM load
 document.addEventListener('DOMContentLoaded', () => {
   window.app = new StatusApp();
 });

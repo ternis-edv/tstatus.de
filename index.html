@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>tstatus.de | Ternis Statuspage - System Operational Status</title>
-  <meta name="description" content="Real-time operational status and uptime monitoring for websites, databases, linux servers, and infrastructure targets at tstatus.de.">
+  <meta name="description" content="Real-time operational status and uptime monitoring for Ternis EDV domains (ternis-edv.de, thosted.de, tstatic.de, ternis.dev, ternismail.de), databases, and linux servers.">
   <meta name="robots" content="index, follow">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,7 +20,7 @@
         <div class="brand-logo">T</div>
         <div class="brand-title-wrap">
           <h1>tstatus.de</h1>
-          <p>Ternis Statuspage &bull; Real-time Monitoring</p>
+          <p>Ternis Statuspage &bull; Real-time Monitoring Platform</p>
         </div>
       </div>
       <div class="header-actions">
@@ -54,44 +54,47 @@
           <span>30-Day Avg Uptime</span>
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--status-operational)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
         </div>
-        <div class="value" id="metricUptime">99.98%</div>
+        <div class="value" id="metricUptime">99.96%</div>
       </div>
       <div class="metric-card">
         <div class="label">
           <span>Average Latency</span>
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--accent-primary)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
         </div>
-        <div class="value" id="metricLatency">28 ms</div>
+        <div class="value" id="metricLatency">24 ms</div>
       </div>
       <div class="metric-card">
         <div class="label">
           <span>Monitored Targets</span>
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--text-sub)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
         </div>
-        <div class="value" id="metricMonitorsCount">6</div>
+        <div class="value" id="metricMonitorsCount">11</div>
       </div>
       <div class="metric-card">
         <div class="label">
           <span>Active Incidents</span>
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="var(--status-degraded)"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
         </div>
-        <div class="value" id="metricIncidentsCount">1</div>
+        <div class="value" id="metricIncidentsCount">2</div>
       </div>
     </div>
 
     <!-- Search & Category Filters -->
     <div class="controls-bar">
       <div class="search-filter-group">
-        <input type="text" id="searchInput" class="search-input" placeholder="Search target host, IP, or service name...">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search target domain, IP, or service name...">
         <select id="categorySelect" class="category-filter">
           <option value="all">All Categories</option>
-          <option value="Websites & Portals">Websites & Portals</option>
-          <option value="Databases & Storage">Databases & Storage</option>
-          <option value="Linux Servers & Infrastructure">Linux Servers & Infrastructure</option>
+          <option value="Ternis Core Services">Ternis Core Services</option>
+          <option value="CDN & Asset Network">CDN &amp; Asset Network</option>
+          <option value="Infrastructure">Infrastructure</option>
+          <option value="Communication Services">Communication Services</option>
+          <option value="Databases & Storage">Databases &amp; Storage</option>
+          <option value="Linux Servers">Linux Servers</option>
         </select>
       </div>
       <div style="font-size: 0.8125rem; color: var(--text-muted);">
-        Auto-refresh in <strong id="refreshTimer" style="color: var(--text-main);">30s</strong> &bull; Updated <span id="lastUpdated">14:45</span>
+        Auto-refresh in <strong id="refreshTimer" style="color: var(--text-main);">30s</strong> &bull; Updated <span id="lastUpdated">14:48</span>
       </div>
     </div>
 
@@ -112,7 +115,7 @@
 
     <!-- Footer -->
     <footer>
-      <p>&copy; 2026 Ternis EDV &bull; <a href="https://tstatus.de" target="_blank">tstatus.de</a> &bull; Open-source Status Monitoring Platform</p>
+      <p>&copy; 2026 Ternis EDV &bull; <a href="https://tstatus.de" target="_blank">tstatus.de</a> &bull; Open-source PHP &amp; SQLite/MariaDB Statuspage Platform</p>
     </footer>
 
   </div>
@@ -127,29 +130,32 @@
       <form id="addMonitorForm">
         <div class="form-group">
           <label class="form-label">Service / Target Name</label>
-          <input type="text" name="name" class="form-control" placeholder="e.g. Production Database Cluster" required>
+          <input type="text" name="name" class="form-control" placeholder="e.g. thosted.de (Ternis Hosted Portal)" required>
         </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Category</label>
             <select name="category" class="form-control">
-              <option value="Websites & Portals">Websites & Portals</option>
+              <option value="Ternis Core Services">Ternis Core Services</option>
+              <option value="CDN & Asset Network">CDN & Asset Network</option>
+              <option value="Infrastructure">Infrastructure</option>
+              <option value="Communication Services">Communication Services</option>
               <option value="Databases & Storage">Databases & Storage</option>
-              <option value="Linux Servers & Infrastructure">Linux Servers & Infrastructure</option>
+              <option value="Linux Servers">Linux Servers</option>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label">Monitor Type</label>
             <select name="type" class="form-control">
-              <option value="website">HTTP / Website</option>
+              <option value="website">HTTP / Website Domain</option>
               <option value="database">Database Host / Port</option>
-              <option value="server">Linux Server / Ping</option>
+              <option value="server">Linux Server / Ping / TCP</option>
             </select>
           </div>
         </div>
         <div class="form-group">
           <label class="form-label">Target URL / Host / IP</label>
-          <input type="text" name="target" class="form-control" placeholder="e.g. https://api.tstatus.de or 192.168.1.10:3306" required>
+          <input type="text" name="target" class="form-control" placeholder="e.g. https://thosted.de or 10.0.8.20:3306" required>
         </div>
         <div class="form-group">
           <label class="form-label">Check Interval (Seconds)</label>
@@ -173,7 +179,7 @@
       <form id="addIncidentForm">
         <div class="form-group">
           <label class="form-label">Incident Title</label>
-          <input type="text" name="title" class="form-control" placeholder="e.g. High latency on Linux App Nodes" required>
+          <input type="text" name="title" class="form-control" placeholder="e.g. Scheduled Network Upgrade on ternis.net" required>
         </div>
         <div class="form-group">
           <label class="form-label">Current Status</label>
