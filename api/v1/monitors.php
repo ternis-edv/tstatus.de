@@ -1,6 +1,6 @@
 <?php
 /**
- * tstatus.de API v1 - Monitors Endpoint
+ * tstatus.de API v1 - Monitors Endpoint (Full CRUD Support)
  */
 
 declare(strict_types=1);
@@ -64,9 +64,9 @@ if ($method === 'GET') {
         http_response_code(500);
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
-} elseif ($method === 'POST') {
+} elseif ($method === 'POST' || $method === 'PUT') {
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-    $action = $input['action'] ?? 'create';
+    $action = $input['action'] ?? ($method === 'PUT' ? 'update' : 'create');
 
     // Protect write operations with AuthMiddleware
     AuthMiddleware::handle();
@@ -79,6 +79,39 @@ if ($method === 'GET') {
         exit;
     }
 
+    if ($action === 'update') {
+        $id = $input['id'] ?? $pathSlug ?? '';
+        if (empty($id)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Missing monitor ID for update']);
+            exit;
+        }
+
+        $stmt = $pdo->prepare("SELECT * FROM monitors WHERE id = ? OR slug = ?");
+        $stmt->execute([$id, $id]);
+        $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$existing) {
+            http_response_code(404);
+            echo json_encode(['success' => false, 'error' => 'Monitor not found']);
+            exit;
+        }
+
+        $name = trim($input['name'] ?? $existing['name']);
+        $category = trim($input['category'] ?? $existing['category']);
+        $type = trim($input['type'] ?? $existing['type']);
+        $target = trim($input['target'] ?? $existing['target']);
+        $interval = (int)($input['check_interval'] ?? $input['interval'] ?? $existing['check_interval']);
+        $status = trim($input['status'] ?? $existing['status']);
+
+        $updateStmt = $pdo->prepare("UPDATE monitors SET name = ?, category = ?, type = ?, target = ?, check_interval = ?, status = ? WHERE id = ?");
+        $updateStmt->execute([$name, $category, $type, $target, $interval, $status, $existing['id']]);
+
+        echo json_encode(['success' => true, 'data' => ['id' => $existing['id'], 'name' => $name, 'status' => $status]]);
+        exit;
+    }
+
+    // Default Action: Create
     $id = 'mon-' . time() . '-' . rand(100, 999);
     $name = trim($input['name'] ?? 'New Service');
     $slug = slugify($name);
