@@ -47,7 +47,7 @@ class CheckJob {
         $updateHistoryStmt = $pdo->prepare("
             UPDATE check_history 
             SET status = ?, latency = ? 
-            WHERE monitor_id = ? AND day_offset = 45
+            WHERE monitor_id = ? AND day_offset = (SELECT MAX(day_offset) FROM check_history WHERE monitor_id = ?)
         ");
 
         foreach ($monitors as $mon) {
@@ -61,7 +61,7 @@ class CheckJob {
 
             // Update database records
             $updateMonStmt->execute([$newStatus, $latency, $uptime, $mon['id']]);
-            $updateHistoryStmt->execute([$newStatus, $latency, $mon['id']]);
+            $updateHistoryStmt->execute([$newStatus, $latency, $mon['id'], $mon['id']]);
 
             // Handle Automated Incidents on Status Transitions
             $incidentTriggered = false;

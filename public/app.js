@@ -450,9 +450,15 @@ class StatusApp {
 
   _buildBars(history) {
     if (!history?.length) return '';
-    return history.map(h => `
-      <div class="bar ${h.status}" data-tip="Day ${h.day}: ${h.status} (${h.latency}ms)"></div>
-    `).join('');
+    // Display the last 30 days for a spacious, high-visibility timeline
+    const recent = history.length > 30 ? history.slice(-30) : history;
+    const total = recent.length;
+    return recent.map((h, i) => {
+      const daysAgo = total - 1 - i;
+      const dayLabel = daysAgo === 0 ? 'Today' : `${daysAgo}d ago`;
+      const statusText = h.status.charAt(0).toUpperCase() + h.status.slice(1);
+      return `<div class="bar ${h.status}" data-tip="${dayLabel}: ${statusText} (${h.latency}ms)"></div>`;
+    }).join('');
   }
 
   _uptimeClass(pct) {
@@ -475,7 +481,7 @@ class StatusApp {
     });
 
     if (!filtered.length) {
-      this.catsEl.innerHTML = `<div class="empty-state">No services match your filter.</div>`;
+      this.catsEl.innerHTML = `<div class="empty-state">No services match your filter criteria.</div>`;
       return;
     }
 
@@ -495,10 +501,16 @@ class StatusApp {
       const labelRow = document.createElement('div');
       labelRow.className = 'cat-label-row';
       labelRow.innerHTML = `
-        <span class="cat-name">${catName}</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="cat-name">${catName}</span>
+          <span style="font-size:11px; color:var(--text-3); font-weight:500;">(${mons.length})</span>
+        </div>
         <span class="cat-pill${hasIssue ? ' issues' : ''}">${hasIssue ? 'Issues Detected' : 'Operational'}</span>
       `;
       group.appendChild(labelRow);
+
+      const card = document.createElement('div');
+      card.className = 'cat-card';
 
       mons.forEach(mon => {
         const row = document.createElement('div');
@@ -523,8 +535,8 @@ class StatusApp {
           </div>
           <div class="mon-timeline">
             <div class="timeline-meta">
-              <span>45 days</span>
-              <span class="uptime-pct ${uClass}">${uptimePct.toFixed(2)}%</span>
+              <span>30 days ago</span>
+              <span class="uptime-pct ${uClass}">${uptimePct.toFixed(2)}% uptime</span>
             </div>
             <div class="bars">${barsHtml}</div>
           </div>
@@ -540,8 +552,10 @@ class StatusApp {
           row.querySelector('.btn-del-mon')?.addEventListener('click',  () => this._deleteMonitor(mon.id, mon.name));
         }
 
-        group.appendChild(row);
+        card.appendChild(row);
       });
+
+      group.appendChild(card);
 
       this.catsEl.appendChild(group);
     }
@@ -624,12 +638,12 @@ class StatusApp {
 
       <div style="padding: 0 0 32px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <span style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-3);">45-Day Uptime History</span>
+          <span style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-3);">30-Day Performance History</span>
           <span style="font-size:12px; font-family:var(--mono); color:var(--text-3);">via Tstatus Job Engine</span>
         </div>
-        <div class="bars" style="height:28px; gap:3px;">${barsHtml}</div>
-        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-3); margin-top:6px;">
-          <span>45 days ago</span>
+        <div class="bars" style="height:32px; gap:3px;">${barsHtml}</div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-3); margin-top:8px;">
+          <span>30 days ago</span>
           <span>Today</span>
         </div>
       </div>
