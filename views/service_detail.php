@@ -81,21 +81,27 @@ $commitHash = get_git_commit_hash();
       </div>
     </div>
 
-    <!-- 45-Day Detailed Timeline Card -->
+    <!-- 30-Day Detailed Timeline Card -->
     <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; margin-bottom: 3rem; box-shadow: var(--shadow-main);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
-        <h3 style="font-size: 1.25rem; font-weight:700; color:var(--text-main);">45-Day Performance History</h3>
+        <h3 style="font-size: 1.25rem; font-weight:700; color:var(--text-main);">30-Day Performance History</h3>
         <span style="font-size: 0.875rem; color:var(--text-muted);">Updated in real-time</span>
       </div>
 
-      <div class="timeline-bars" style="height: 48px; gap: 4px;">
-        <?php foreach ($history as $h): ?>
-          <div class="bar-item <?= htmlspecialchars($h['status']) ?>" data-tooltip="Day <?= $h['day'] ?>: <?= strtoupper($h['status']) ?> (<?= $h['latency'] ?>ms)"></div>
+      <div class="bars" style="height: 36px; gap: 4px;">
+        <?php 
+        $recentHistory = (count($history) > 30) ? array_slice($history, -30) : $history;
+        $tot = count($recentHistory);
+        foreach ($recentHistory as $idx => $h): 
+          $daysAgo = $tot - 1 - $idx;
+          $lbl = ($daysAgo === 0) ? 'Today' : "{$daysAgo}d ago";
+        ?>
+          <div class="bar <?= htmlspecialchars($h['status']) ?>" data-tip="<?= $lbl ?>: <?= strtoupper(htmlspecialchars($h['status'])) ?> (<?= (int)$h['latency'] ?>ms)"></div>
         <?php endforeach; ?>
       </div>
 
       <div style="display:flex; justify-content:space-between; margin-top: 1rem; font-size: 0.8125rem; color: var(--text-muted);">
-        <span>45 Days Ago</span>
+        <span>30 Days Ago</span>
         <span>Today</span>
       </div>
     </div>

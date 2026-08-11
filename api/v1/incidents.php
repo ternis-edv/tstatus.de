@@ -34,7 +34,30 @@ if ($method === 'GET') {
     AuthMiddleware::handle();
 
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    $action = $input['action'] ?? 'create';
 
+    if ($action === 'delete') {
+        $id = $input['id'] ?? '';
+        $pdo->prepare("DELETE FROM incidents WHERE id = ?")->execute([$id]);
+        echo json_encode(['success' => true, 'data' => ['deleted_id' => $id]]);
+        exit;
+    }
+
+    if ($action === 'update_status') {
+        $id = $input['incident_id'] ?? $input['id'] ?? '';
+        $status = trim($input['status'] ?? 'monitoring');
+        $message = trim($input['message'] ?? 'Status update.');
+        $updateTime = date('H:i') . ' CEST';
+
+        $pdo->prepare("UPDATE incidents SET status = ? WHERE id = ?")->execute([$status, $id]);
+        $uStmt = $pdo->prepare("INSERT INTO incident_updates (incident_id, status, message, update_time) VALUES (?, ?, ?, ?)");
+        $uStmt->execute([$id, $status, $message, $updateTime]);
+
+        echo json_encode(['success' => true, 'data' => ['id' => $id, 'status' => $status]]);
+        exit;
+    }
+
+    // Default Action: Create New Incident
     $id = 'inc-' . time() . '-' . rand(100, 999);
     $title = trim($input['title'] ?? 'System Notice');
     $status = trim($input['status'] ?? 'investigating');
@@ -49,4 +72,17 @@ if ($method === 'GET') {
     $uStmt->execute([$id, $status, $message, $updateTime]);
 
     echo json_encode(['success' => true, 'data' => ['id' => $id, 'title' => $title, 'status' => $status]]);
+} elseif ($method === 'DELETE') {
+    AuthMiddleware::handle();
+    $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '';
+    $parts = array_values(array_filter(explode('/', $path)));
+    $id = end($parts);
+
+    if ($id && $id !== 'incidents') {
+        $pdo->prepare("DELETE FROM incidents WHERE id = ?")->execute([$id]);
+        echo json_encode(['success' => true, 'data' => ['deleted_id' => $id]]);
+    } else {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'Missing incident ID']);
+    }
 }
