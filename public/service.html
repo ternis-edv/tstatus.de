@@ -1,57 +1,46 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Service Status | tstatus.de</title>
-  <meta name="description" content="Dedicated real-time uptime, response latency, and operational status for Ternis EDV service target.">
+  <title>Service Detail — tstatus.de</title>
+  <meta name="description" content="Detailed status history, uptime metrics, and performance data for a Ternis EDV monitored service.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 
-  <!-- Navigation Header -->
-  <header>
-    <div class="container nav-content">
-      <div class="brand-section">
-        <a href="/" style="text-decoration:none; display:flex; align-items:center; gap:0.875rem;">
-          <div class="brand-logo">T</div>
-          <div class="brand-title-wrap">
-            <h1 style="color:var(--text-main);">tstatus.de</h1>
-            <p>Ternis Statuspage &bull; Dedicated Service View</p>
-          </div>
-        </a>
-      </div>
-      <div class="header-actions">
-        <button id="btnThemeToggle" class="btn btn-sm btn-icon" title="Toggle Light/Dark Theme">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+  <nav class="site-nav">
+    <div class="wrap">
+      <a href="/" class="nav-brand" aria-label="tstatus.de home">
+        <span class="site-name">tstatus.de</span>
+        <span class="site-sub">Ternis Status &amp; Uptime</span>
+      </a>
+      <div class="nav-actions">
+        <button id="btnThemeToggle" class="btn btn-icon" title="Toggle theme" aria-label="Toggle theme">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
         </button>
-        <a href="/" class="btn btn-sm">
-          &larr; Back to Overview
-        </a>
+        <a href="/" class="btn">&larr; All Services</a>
       </div>
     </div>
-  </header>
+  </nav>
 
-  <div class="container">
-    
-    <!-- Dynamic Service Card (Injected via API) -->
-    <div id="serviceCardContainer">
-      <div style="text-align:center; padding: 4rem; color:var(--text-muted);">
-        Loading service details from API...
+  <main>
+    <div class="wrap">
+      <div id="serviceCardContainer">
+        <div class="empty-state">Loading service details…</div>
       </div>
     </div>
+  </main>
 
-    <!-- Footer -->
-    <footer>
-      <p id="footerText">
-        &copy; 2026 Ternis EDV &bull; <a href="/">tstatus.de</a> &bull; Dedicated Service Monitoring
-      </p>
-    </footer>
+  <footer class="site-footer">
+    <div class="wrap">
+      <p id="footerText">&copy; 2026 Ternis EDV &bull; <a href="/">tstatus.de</a> &bull; Service Detail View</p>
+    </div>
+  </footer>
 
-  </div>
+  <div id="toast-container"></div>
 
   <script src="/app.js"></script>
 </body>

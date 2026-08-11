@@ -1,708 +1,644 @@
 /**
- * tstatus.de - Ternis Statuspage Application Logic
- * Powered by /api/v1/ REST Endpoints with Session & API Authentication
+ * tstatus.de — Application Engine
+ * PHP 8.5 Backend REST APIs (/api/v1) & Automated Status Check Job Engine
  */
 
-const API_V1 = '/api/v1';
-const API_INFO = `${API_V1}/info`;
+const API_V1       = '/api/v1';
+const API_INFO     = `${API_V1}/info`;
 const API_MONITORS = `${API_V1}/monitors`;
-const API_INCIDENTS = `${API_V1}/incidents`;
-const API_CHECK = `${API_V1}/check`;
-const API_AUTH = `${API_V1}/auth`;
+const API_INCIDENTS= `${API_V1}/incidents`;
+const API_CHECK    = `${API_V1}/check`;
+const API_AUTH     = `${API_V1}/auth`;
 
-const STORAGE_KEY_THEME = 'tstatus_theme_v1';
+const THEME_KEY = 'tstatus_theme_v2';
 
+/* ── StatusApp ──────────────────────────────────────────────────────────── */
 class StatusApp {
   constructor() {
-    this.monitors = [];
-    this.incidents = [];
-    this.info = null;
-    this.user = null;
-    this.filterSearch = '';
-    this.filterCategory = 'all';
-    this.autoRefreshTimer = null;
-    this.secondsUntilRefresh = 30;
+    this.monitors    = [];
+    this.incidents   = [];
+    this.info        = null;
+    this.user        = null;
+    this.filterText  = '';
+    this.filterCat   = 'all';
+    this.refreshTimer= null;
+    this.countdown   = 30;
 
-    this.currentTheme = this.initTheme();
-
-    this.initElements();
-    this.bindEvents();
-    this.checkAuthStatus();
-    this.fetchAppInfo();
+    this.theme = this._initTheme();
+    this._cacheElements();
+    this._bindEvents();
+    this._checkAuth();
+    this._fetchInfo();
 
     const path = window.location.pathname;
     if (path.startsWith('/s/')) {
       const slug = path.split('/s/')[1];
-      if (slug) {
-        this.fetchServiceDetail(slug);
-      }
+      if (slug) this._fetchServiceDetail(slug);
     } else {
-      this.fetchData();
-      this.startAutoRefresh();
+      this._fetchData();
+      this._startCountdown();
     }
   }
 
-  initTheme() {
-    const saved = localStorage.getItem(STORAGE_KEY_THEME);
-    let theme = 'dark';
-    if (saved) {
-      theme = saved;
-    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-      theme = 'light';
-    }
+  /* ── Theme ──────────────────────────────────────────────────────────── */
+  _initTheme() {
+    const saved = localStorage.getItem(THEME_KEY);
+    const theme = saved || (window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
     document.documentElement.setAttribute('data-theme', theme);
     return theme;
   }
 
-  async checkAuthStatus() {
+  _toggleTheme() {
+    this.theme = this.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', this.theme);
+    localStorage.setItem(THEME_KEY, this.theme);
+    this._renderThemeBtn();
+  }
+
+  _renderThemeBtn() {
+    const btn = document.getElementById('btnThemeToggle');
+    if (!btn) return;
+    const isDark = this.theme === 'dark';
+    btn.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+    btn.innerHTML = isDark
+      ? `<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>`
+      : `<svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>`;
+  }
+
+  /* ── Auth ───────────────────────────────────────────────────────────── */
+  async _checkAuth() {
     try {
-      const res = await fetch(`${API_AUTH}/me`);
+      const res  = await fetch(`${API_AUTH}/me`);
       const data = await res.json();
-      if (data.success && data.authenticated) {
-        this.user = data.data;
-      } else {
-        this.user = null;
-      }
-    } catch (e) {
-      this.user = null;
-    }
-    this.renderAdminControls();
+      this.user  = (data.success && data.authenticated) ? data.data : null;
+    } catch { this.user = null; }
+    this._renderAdminControls();
   }
 
-  toggleTheme() {
-    this.currentTheme = (this.currentTheme === 'dark') ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', this.currentTheme);
-    localStorage.setItem(STORAGE_KEY_THEME, this.currentTheme);
-    this.renderThemeToggleIcon();
-  }
-
-  toggleAdminMode() {
+  _toggleAdminMode() {
     if (this.user) {
-      // User is logged in -> logout
-      if (confirm('Log out of Admin Mode?')) {
-        this.handleLogout();
-      }
+      if (confirm(`Logged in as '${this.user.username}'. Log out?`)) this._handleLogout();
     } else {
-      // User is not logged in -> open login modal
-      this.openModal(this.loginModalEl);
+      this._openModal(this.loginModal);
     }
   }
 
-  async handleLogin(form) {
-    const formData = new FormData(form);
-    const payload = {
-      username: formData.get('username'),
-      password: formData.get('password')
-    };
-
-    const errorEl = document.getElementById('loginErrorMsg');
-    if (errorEl) errorEl.style.display = 'none';
+  async _handleLogin(form) {
+    const fd = new FormData(form);
+    const errEl = document.getElementById('loginErrorMsg');
+    if (errEl) errEl.style.display = 'none';
 
     try {
-      const res = await fetch(`${API_AUTH}/login`, {
+      const res  = await fetch(`${API_AUTH}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ username: fd.get('username'), password: fd.get('password') })
       });
       const data = await res.json();
       if (data.success) {
         this.user = data.data;
-        this.closeModal(this.loginModalEl);
+        this._closeModal(this.loginModal);
         form.reset();
-        this.renderAdminControls();
-        this.renderMonitors();
+        this._renderAdminControls();
+        this._renderMonitors();
+        this._toast(`Authenticated as ${this.user.username}`);
       } else {
-        if (errorEl) {
-          errorEl.textContent = data.error || 'Invalid credentials';
-          errorEl.style.display = 'block';
-        }
+        if (errEl) { errEl.textContent = data.error || 'Invalid credentials'; errEl.style.display = 'block'; }
       }
-    } catch (e) {
-      if (errorEl) {
-        errorEl.textContent = 'Login failed. Please try again.';
-        errorEl.style.display = 'block';
-      }
+    } catch {
+      if (errEl) { errEl.textContent = 'Connection error.'; errEl.style.display = 'block'; }
     }
   }
 
-  async handleLogout() {
-    try {
-      await fetch(`${API_AUTH}/logout`, { method: 'POST' });
-    } catch (e) {}
+  async _handleLogout() {
+    try { await fetch(`${API_AUTH}/logout`, { method: 'POST' }); } catch {}
     this.user = null;
-    this.renderAdminControls();
-    this.renderMonitors();
+    this._renderAdminControls();
+    this._renderMonitors();
+    this._toast('Logged out of admin mode');
   }
 
-  renderThemeToggleIcon() {
-    const btn = document.getElementById('btnThemeToggle');
-    if (!btn) return;
-    if (this.currentTheme === 'light') {
-      btn.innerHTML = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>`;
-      btn.title = "Switch to Dark Mode";
-    } else {
-      btn.innerHTML = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>`;
-      btn.title = "Switch to Light Mode";
-    }
-  }
+  _renderAdminControls() {
+    const group   = document.getElementById('adminControlsGroup');
+    const lockBtn = document.getElementById('btnAdminToggle');
+    const isAuth  = !!this.user;
 
-  renderAdminControls() {
-    const adminGroup = document.getElementById('adminControlsGroup');
-    const adminToggleBtn = document.getElementById('btnAdminToggle');
-
-    const isAuthenticated = !!this.user;
-
-    if (adminGroup) {
-      adminGroup.style.display = isAuthenticated ? 'flex' : 'none';
-    }
-
-    if (adminToggleBtn) {
-      if (isAuthenticated) {
-        adminToggleBtn.style.color = 'var(--status-operational)';
-        adminToggleBtn.title = `Logged in as ${this.user.username} (Click to logout)`;
-      } else {
-        adminToggleBtn.style.color = 'var(--text-main)';
-        adminToggleBtn.title = 'Admin Authentication (Click to login)';
-      }
+    if (group)   group.style.display = isAuth ? 'flex' : 'none';
+    if (lockBtn) {
+      lockBtn.style.color = isAuth ? 'var(--green)' : '';
+      lockBtn.title = isAuth ? `${this.user.username} — click to logout` : 'Admin authentication';
     }
   }
 
-  initElements() {
-    this.globalBannerEl = document.getElementById('globalStatusBanner');
-    this.uptimeMetricEl = document.getElementById('metricUptime');
-    this.latencyMetricEl = document.getElementById('metricLatency');
-    this.monitorsCountEl = document.getElementById('metricMonitorsCount');
-    this.incidentsCountEl = document.getElementById('metricIncidentsCount');
-    this.categoriesContainerEl = document.getElementById('categoriesContainer');
-    this.incidentsContainerEl = document.getElementById('incidentsContainer');
-    this.serviceCardContainerEl = document.getElementById('serviceCardContainer');
-    this.lastUpdatedEl = document.getElementById('lastUpdated');
-    this.refreshTimerEl = document.getElementById('refreshTimer');
-    this.searchInputEl = document.getElementById('searchInput');
-    this.categorySelectEl = document.getElementById('categorySelect');
-    this.footerTextEl = document.getElementById('footerText');
+  /* ── DOM Cache & Bind ───────────────────────────────────────────────── */
+  _cacheElements() {
+    this.statusDot         = document.getElementById('statusDot');
+    this.statusTitle       = document.getElementById('statusTitle');
+    this.statusSub         = document.getElementById('statusSub');
+    this.uptimeEl          = document.getElementById('metricUptime');
+    this.latencyEl         = document.getElementById('metricLatency');
+    this.monCountEl        = document.getElementById('metricMonitorsCount');
+    this.incCountEl        = document.getElementById('metricIncidentsCount');
+    this.catsEl            = document.getElementById('categoriesContainer');
+    this.incsEl            = document.getElementById('incidentsContainer');
+    this.svcDetailEl       = document.getElementById('serviceCardContainer');
+    this.lastUpdatedEl     = document.getElementById('lastUpdated');
+    this.toolbarUpdatedEl  = document.getElementById('toolbarUpdated');
+    this.countdownEl       = document.getElementById('refreshTimer');
+    this.searchEl          = document.getElementById('searchInput');
+    this.catSelectEl       = document.getElementById('categorySelect');
+    this.footerEl          = document.getElementById('footerText');
+    this.toastWrap         = document.getElementById('toast-container');
 
-    this.loginModalEl = document.getElementById('loginModal');
-    this.addMonitorModalEl = document.getElementById('addMonitorModal');
-    this.addIncidentModalEl = document.getElementById('addIncidentModal');
+    this.loginModal        = document.getElementById('loginModal');
+    this.addMonModal       = document.getElementById('addMonitorModal');
+    this.editMonModal      = document.getElementById('editMonitorModal');
+    this.addIncModal       = document.getElementById('addIncidentModal');
 
-    this.renderThemeToggleIcon();
+    this._renderThemeBtn();
   }
 
-  bindEvents() {
-    const btnTheme = document.getElementById('btnThemeToggle');
-    if (btnTheme) {
-      btnTheme.addEventListener('click', () => this.toggleTheme());
-    }
+  _bindEvents() {
+    document.getElementById('btnThemeToggle')
+      ?.addEventListener('click', () => this._toggleTheme());
 
-    const btnAdmin = document.getElementById('btnAdminToggle');
-    if (btnAdmin) {
-      btnAdmin.addEventListener('click', () => this.toggleAdminMode());
-    }
+    document.getElementById('btnAdminToggle')
+      ?.addEventListener('click', () => this._toggleAdminMode());
 
-    const formLogin = document.getElementById('loginForm');
-    if (formLogin) {
-      formLogin.addEventListener('submit', (e) => {
-        e.preventDefault();
-        this.handleLogin(e.target);
-      });
-    }
+    document.getElementById('btnRunCheckJob')
+      ?.addEventListener('click', () => this._runJob());
 
-    if (this.searchInputEl) {
-      this.searchInputEl.addEventListener('input', (e) => {
-        this.filterSearch = e.target.value.toLowerCase();
-        this.renderMonitors();
-      });
-    }
+    document.getElementById('loginForm')
+      ?.addEventListener('submit', e => { e.preventDefault(); this._handleLogin(e.target); });
 
-    if (this.categorySelectEl) {
-      this.categorySelectEl.addEventListener('change', (e) => {
-        this.filterCategory = e.target.value;
-        this.renderMonitors();
-      });
-    }
+    document.getElementById('btnOpenAddMonitor')
+      ?.addEventListener('click', () => this._openModal(this.addMonModal));
 
-    const btnRefresh = document.getElementById('btnRefresh');
-    if (btnRefresh) {
-      btnRefresh.addEventListener('click', () => this.checkAllMonitors());
-    }
+    document.getElementById('btnOpenAddIncident')
+      ?.addEventListener('click', () => this._openModal(this.addIncModal));
 
-    const btnAddMon = document.getElementById('btnOpenAddMonitor');
-    if (btnAddMon) {
-      btnAddMon.addEventListener('click', () => this.openModal(this.addMonitorModalEl));
-    }
+    document.getElementById('addMonitorForm')
+      ?.addEventListener('submit', e => { e.preventDefault(); this._addMonitor(e.target); });
 
-    const btnAddInc = document.getElementById('btnOpenAddIncident');
-    if (btnAddInc) {
-      btnAddInc.addEventListener('click', () => this.openModal(this.addIncidentModalEl));
-    }
+    document.getElementById('editMonitorForm')
+      ?.addEventListener('submit', e => { e.preventDefault(); this._editMonitor(e.target); });
 
-    const formAddMon = document.getElementById('addMonitorForm');
-    if (formAddMon) {
-      formAddMon.addEventListener('submit', (e) => {
-        e.preventDefault();
-        this.handleAddMonitor(e.target);
-      });
-    }
+    document.getElementById('addIncidentForm')
+      ?.addEventListener('submit', e => { e.preventDefault(); this._addIncident(e.target); });
 
-    const formAddInc = document.getElementById('addIncidentForm');
-    if (formAddInc) {
-      formAddInc.addEventListener('submit', (e) => {
-        e.preventDefault();
-        this.handleAddIncident(e.target);
-      });
-    }
-
+    // Close buttons
     document.querySelectorAll('.modal-close, .btn-cancel-modal').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const backdrop = e.target.closest('.modal-backdrop');
-        this.closeModal(backdrop);
+      btn.addEventListener('click', e => {
+        this._closeModal(e.target.closest('.modal-backdrop'));
       });
+    });
+
+    // Backdrop click to close
+    document.querySelectorAll('.modal-backdrop').forEach(bd => {
+      bd.addEventListener('click', e => { if (e.target === bd) this._closeModal(bd); });
+    });
+
+    // Search
+    this.searchEl?.addEventListener('input', e => {
+      this.filterText = e.target.value.toLowerCase().trim();
+      this._renderMonitors();
+    });
+
+    // Category filter
+    this.catSelectEl?.addEventListener('change', e => {
+      this.filterCat = e.target.value;
+      this._renderMonitors();
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      if (e.key === '/' && document.activeElement !== this.searchEl) {
+        e.preventDefault();
+        this.searchEl?.focus();
+      } else if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop.active').forEach(m => this._closeModal(m));
+      }
     });
   }
 
-  openModal(modalEl) {
-    if (modalEl) modalEl.classList.add('active');
+  /* ── Modals ─────────────────────────────────────────────────────────── */
+  _openModal(el)  { el?.classList.add('active'); }
+  _closeModal(el) { el?.classList.remove('active'); }
+
+  /* ── Toast ──────────────────────────────────────────────────────────── */
+  _toast(msg, type = 'success') {
+    if (!this.toastWrap) return;
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.innerHTML = `<span class="toast-dot"></span><span>${msg}</span>`;
+    this.toastWrap.appendChild(el);
+    setTimeout(() => {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(6px)';
+      el.style.transition = '0.2s ease';
+      setTimeout(() => el.remove(), 220);
+    }, 3200);
   }
 
-  closeModal(modalEl) {
-    if (modalEl) modalEl.classList.remove('active');
-  }
-
-  async fetchAppInfo() {
+  /* ── Data Fetching ──────────────────────────────────────────────────── */
+  async _fetchInfo() {
     try {
-      const res = await fetch(API_INFO);
+      const res  = await fetch(API_INFO);
+      const data = await res.json();
+      if (data.success && data.data && this.footerEl) {
+        const d = data.data;
+        this.footerEl.innerHTML = `
+          &copy; 2026 Ternis EDV &bull;
+          <a href="https://tstatus.de" target="_blank">tstatus.de</a> &bull;
+          PHP ${d.version || '8.5'} REST API (${d.api_version}) &bull;
+          Commit: <a href="${d.github_latest_url}" target="_blank" rel="noopener" style="font-family:var(--mono);">${d.commit_hash}</a>
+        `;
+      }
+    } catch {}
+  }
+
+  async _fetchData() {
+    try {
+      const r = await fetch(API_MONITORS);
+      const d = await r.json();
+      if (d.success && d.data) this.monitors = d.data;
+    } catch {}
+
+    try {
+      const r = await fetch(API_INCIDENTS);
+      const d = await r.json();
+      if (d.success && d.data) this.incidents = d.data;
+    } catch {}
+
+    this._render();
+  }
+
+  async _fetchServiceDetail(slug) {
+    try {
+      const res  = await fetch(`${API_MONITORS}?slug=${encodeURIComponent(slug)}`);
       const data = await res.json();
       if (data.success && data.data) {
-        this.info = data.data;
-        if (this.footerTextEl) {
-          this.footerTextEl.innerHTML = `
-            &copy; 2026 Ternis EDV &bull; <a href="https://tstatus.de" target="_blank">tstatus.de</a> &bull; Open-source Status Platform (${this.info.api_version}) &bull; 
-            Commit: <a href="${this.info.github_latest_url}" target="_blank" rel="noopener" style="font-family: monospace; color: var(--accent-primary); border-bottom: 1px dashed var(--accent-primary);">${this.info.commit_hash}</a>
-          `;
-        }
+        this._renderServiceDetail(data.data);
+      } else if (this.svcDetailEl) {
+        this.svcDetailEl.innerHTML = `<div class="empty-state">Service '${slug}' not found. <a href="/">Return to status page</a></div>`;
       }
-    } catch (e) {}
-  }
-
-  async fetchData() {
-    try {
-      const resMon = await fetch(API_MONITORS);
-      const dataMon = await resMon.json();
-      if (dataMon.success && dataMon.data) {
-        this.monitors = dataMon.data;
-      }
-    } catch (e) {}
-
-    try {
-      const resInc = await fetch(API_INCIDENTS);
-      const dataInc = await resInc.json();
-      if (dataInc.success && dataInc.data) {
-        this.incidents = dataInc.data;
-      }
-    } catch (e) {}
-
-    this.render();
-  }
-
-  async fetchServiceDetail(slug) {
-    try {
-      const res = await fetch(`${API_MONITORS}?slug=${encodeURIComponent(slug)}`);
-      const data = await res.json();
-      if (data.success && data.data) {
-        this.renderServiceDetail(data.data);
-      } else {
-        if (this.serviceCardContainerEl) {
-          this.serviceCardContainerEl.innerHTML = `<div style="text-align:center; padding:4rem; color:var(--status-outage);">Service '${slug}' not found. <a href="/">Return to statuspage overview</a></div>`;
-        }
-      }
-    } catch (e) {
-      if (this.serviceCardContainerEl) {
-        this.serviceCardContainerEl.innerHTML = `<div style="text-align:center; padding:4rem; color:var(--status-outage);">Failed to load service detail from API v1.</div>`;
-      }
+    } catch {
+      if (this.svcDetailEl) this.svcDetailEl.innerHTML = `<div class="empty-state">Failed to load service details.</div>`;
     }
   }
 
-  renderServiceDetail(mon) {
-    if (!this.serviceCardContainerEl) return;
-    document.title = `${mon.name} Status | tstatus.de`;
-
-    const barsHtml = (mon.history || []).map(h => `
-      <div class="bar-item ${h.status}" data-tooltip="Day ${h.day}: ${h.status.toUpperCase()} (${h.latency}ms)"></div>
-    `).join('');
-
-    this.serviceCardContainerEl.innerHTML = `
-      <div class="card" style="margin-bottom: 2rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; box-shadow: var(--shadow-main);">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
-          <div>
-            <span style="font-size:0.8125rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent-primary); font-weight:600;">
-              ${mon.category}
-            </span>
-            <h1 style="font-size: 2rem; font-weight:700; margin:0.25rem 0 0.5rem 0; color:var(--text-main);">
-              ${mon.name}
-            </h1>
-            <p style="font-family:monospace; color:var(--text-muted); font-size:0.9375rem;">
-              Target: ${mon.target}
-            </p>
-          </div>
-          <div>
-            <span class="status-badge ${mon.status}" style="font-size: 1rem; padding: 0.5rem 1.25rem;">
-              &bull; ${mon.status.toUpperCase()}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div class="metrics-grid" style="margin-bottom: 2.5rem;">
-        <div class="metric-card">
-          <div class="label">Average Latency</div>
-          <div class="value">${mon.latency} ms</div>
-        </div>
-        <div class="metric-card">
-          <div class="label">30-Day Uptime</div>
-          <div class="value" style="color:var(--status-operational);">${parseFloat(mon.uptime).toFixed(2)}%</div>
-        </div>
-        <div class="metric-card">
-          <div class="label">Check Frequency</div>
-          <div class="value">Every ${mon.check_interval}s</div>
-        </div>
-        <div class="metric-card">
-          <div class="label">Service Slug</div>
-          <div class="value" style="font-size: 1.125rem; font-family:monospace; color:var(--text-sub);">/s/${mon.slug}</div>
-        </div>
-      </div>
-
-      <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; margin-bottom: 3rem; box-shadow: var(--shadow-main);">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
-          <h3 style="font-size: 1.25rem; font-weight:700; color:var(--text-main);">45-Day Performance History</h3>
-          <span style="font-size: 0.875rem; color:var(--text-muted);">Updated via /api/v1/monitors</span>
-        </div>
-
-        <div class="timeline-bars" style="height: 48px; gap: 4px;">
-          ${barsHtml}
-        </div>
-
-        <div style="display:flex; justify-content:space-between; margin-top: 1rem; font-size: 0.8125rem; color: var(--text-muted);">
-          <span>45 Days Ago</span>
-          <span>Today</span>
-        </div>
-      </div>
-    `;
-  }
-
-  startAutoRefresh() {
-    if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
-    this.secondsUntilRefresh = 30;
-    this.autoRefreshTimer = setInterval(() => {
-      this.secondsUntilRefresh--;
-      if (this.refreshTimerEl) {
-        this.refreshTimerEl.textContent = `${this.secondsUntilRefresh}s`;
-      }
-      if (this.secondsUntilRefresh <= 0) {
-        this.checkAllMonitors();
-        this.secondsUntilRefresh = 30;
+  /* ── Countdown & Job ────────────────────────────────────────────────── */
+  _startCountdown() {
+    if (this.refreshTimer) clearInterval(this.refreshTimer);
+    this.countdown = 30;
+    this.refreshTimer = setInterval(() => {
+      this.countdown--;
+      if (this.countdownEl) this.countdownEl.textContent = `${this.countdown}s`;
+      if (this.countdown <= 0) {
+        this._runJob(true);
+        this.countdown = 30;
       }
     }, 1000);
   }
 
-  async checkAllMonitors() {
-    const btn = document.getElementById('btnRefresh');
-    if (btn) btn.disabled = true;
+  async _runJob(silent = false) {
+    const btn = document.getElementById('btnRunCheckJob');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<svg class="spin" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Checking…`;
+    }
 
     try {
-      const res = await fetch(API_CHECK);
+      const res  = await fetch(API_CHECK);
       const data = await res.json();
       if (data.success) {
-        await this.fetchData();
+        await this._fetchData();
+        if (!silent) this._toast(`Job complete — ${data.checked_count ?? data.summary?.checked_count ?? 0} targets checked`);
       }
-    } catch (e) {}
+    } catch {
+      if (!silent) this._toast('Health check failed', 'error');
+    }
 
-    if (btn) btn.disabled = false;
-    this.secondsUntilRefresh = 30;
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Run Job`;
+    }
+    this.countdown = 30;
   }
 
-  async handleAddMonitor(form) {
-    const formData = new FormData(form);
+  /* ── CRUD ───────────────────────────────────────────────────────────── */
+  async _addMonitor(form) {
+    const fd = new FormData(form);
     const payload = {
-      name: formData.get('name'),
-      category: formData.get('category'),
-      type: formData.get('type'),
-      target: formData.get('target'),
-      interval: parseInt(formData.get('interval') || '30')
+      name: fd.get('name'), category: fd.get('category'),
+      type: fd.get('type'), target: fd.get('target'),
+      interval: parseInt(fd.get('interval') || '30')
     };
+    try {
+      const res  = await fetch(API_MONITORS, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+      const data = await res.json();
+      if (data.success) {
+        await this._fetchData();
+        this._closeModal(this.addMonModal);
+        form.reset();
+        this._toast(`Target '${payload.name}' added`);
+      } else if (res.status === 401) this._openModal(this.loginModal);
+    } catch { this._toast('Failed to add target', 'error'); }
+  }
 
+  _openEditModal(mon) {
+    document.getElementById('editMonitorId').value       = mon.id;
+    document.getElementById('editMonitorName').value     = mon.name;
+    document.getElementById('editMonitorCategory').value = mon.category;
+    document.getElementById('editMonitorType').value     = mon.type;
+    document.getElementById('editMonitorTarget').value   = mon.target;
+    document.getElementById('editMonitorStatus').value   = mon.status;
+    this._openModal(this.editMonModal);
+  }
+
+  async _editMonitor(form) {
+    const fd = new FormData(form);
+    const payload = {
+      action:'update', id:fd.get('id'), name:fd.get('name'),
+      category:fd.get('category'), type:fd.get('type'),
+      target:fd.get('target'), status:fd.get('status')
+    };
+    try {
+      const res  = await fetch(API_MONITORS, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+      const data = await res.json();
+      if (data.success) {
+        await this._fetchData();
+        this._closeModal(this.editMonModal);
+        this._toast(`Target '${payload.name}' updated`);
+      } else if (res.status === 401) this._openModal(this.loginModal);
+    } catch { this._toast('Failed to update target', 'error'); }
+  }
+
+  async _deleteMonitor(id, name) {
+    if (!confirm(`Remove monitor '${name}'?`)) return;
     try {
       const res = await fetch(API_MONITORS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ action:'delete', id })
       });
-      const data = await res.json();
-      if (data.success) {
-        await this.fetchData();
-        this.closeModal(this.addMonitorModalEl);
-        form.reset();
-      } else if (res.status === 401) {
-        this.openModal(this.loginModalEl);
-      }
-    } catch (e) {}
+      if (res.status === 401) { this._openModal(this.loginModal); return; }
+      await this._fetchData();
+      this._toast(`Monitor '${name}' removed`);
+    } catch { this._toast('Failed to remove monitor', 'error'); }
   }
 
-  async handleAddIncident(form) {
-    const formData = new FormData(form);
-    const payload = {
-      title: formData.get('title'),
-      status: formData.get('status'),
-      message: formData.get('message')
-    };
-
+  async _addIncident(form) {
+    const fd = new FormData(form);
+    const payload = { title:fd.get('title'), status:fd.get('status'), message:fd.get('message') };
     try {
-      const res = await fetch(API_INCIDENTS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const res  = await fetch(API_INCIDENTS, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
       const data = await res.json();
       if (data.success) {
-        await this.fetchData();
-        this.closeModal(this.addIncidentModalEl);
+        await this._fetchData();
+        this._closeModal(this.addIncModal);
         form.reset();
-      } else if (res.status === 401) {
-        this.openModal(this.loginModalEl);
-      }
-    } catch (e) {}
+        this._toast('Incident notice published');
+      } else if (res.status === 401) this._openModal(this.loginModal);
+    } catch { this._toast('Failed to publish notice', 'error'); }
   }
 
-  async deleteMonitor(id) {
-    if (confirm('Are you sure you want to remove this monitor?')) {
-      try {
-        const res = await fetch(API_MONITORS, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'delete', id: id })
-        });
-        if (res.status === 401) {
-          this.openModal(this.loginModalEl);
-          return;
-        }
-        await this.fetchData();
-      } catch (e) {}
-    }
+  /* ── Render ─────────────────────────────────────────────────────────── */
+  _render() {
+    this._renderHero();
+    this._renderMetrics();
+    this._renderMonitors();
+    this._renderIncidents();
+
+    const now = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    if (this.lastUpdatedEl)    this.lastUpdatedEl.textContent    = now;
+    if (this.toolbarUpdatedEl) this.toolbarUpdatedEl.textContent = now;
   }
 
-  render() {
-    this.renderGlobalBanner();
-    this.renderMetrics();
-    this.renderMonitors();
-    this.renderIncidents();
-    if (this.lastUpdatedEl) {
-      this.lastUpdatedEl.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    }
-  }
+  _renderHero() {
+    const hasOutage   = this.monitors.some(m => m.status === 'outage');
+    const hasDegraded = this.monitors.some(m => m.status === 'degraded');
 
-  renderGlobalBanner() {
-    if (!this.globalBannerEl) return;
-    let hasOutage = this.monitors.some(m => m.status === 'outage');
-    let hasDegraded = this.monitors.some(m => m.status === 'degraded');
-    
-    let statusClass = 'operational';
-    let titleText = 'All Systems Operational';
-    let subText = 'All monitored services, database hosts, and servers are responding normally.';
-    let iconSvg = `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>`;
+    let dotClass = 'status-dot live';
+    let title    = 'All Systems Operational';
+    let sub      = 'All monitored services, databases, and servers are responding normally.';
 
     if (hasOutage) {
-      statusClass = 'outage';
-      titleText = 'System Outage Detected';
-      subText = 'One or more critical services or database hosts are currently offline.';
-      iconSvg = `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>`;
+      dotClass = 'status-dot outage live';
+      title    = 'System Outage Detected';
+      sub      = 'One or more critical services are currently offline.';
     } else if (hasDegraded) {
-      statusClass = 'degraded';
-      titleText = 'Degraded System Performance';
-      subText = 'Some infrastructure components are experiencing higher latency or minor issues.';
-      iconSvg = `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`;
+      dotClass = 'status-dot degraded live';
+      title    = 'Degraded Performance';
+      sub      = 'Some services are experiencing elevated latency or minor issues.';
     }
 
-    this.globalBannerEl.className = `global-status-banner`;
-    this.globalBannerEl.innerHTML = `
-      <div class="banner-info">
-        <div class="status-indicator-lg ${statusClass}">
-          ${iconSvg}
-        </div>
-        <div class="banner-text">
-          <h2>${titleText}</h2>
-          <p>${subText}</p>
-        </div>
-      </div>
-      <div class="banner-meta">
-        <p>Live Monitoring &bull; <strong>tstatus.de</strong></p>
-      </div>
-    `;
+    if (this.statusDot)   this.statusDot.className   = dotClass;
+    if (this.statusTitle) this.statusTitle.textContent = title;
+    if (this.statusSub)   this.statusSub.textContent   = sub;
   }
 
-  renderMetrics() {
+  _renderMetrics() {
     if (!this.monitors.length) return;
-    
-    const avgUptime = (this.monitors.reduce((acc, m) => acc + (parseFloat(m.uptime) || 99.9), 0) / this.monitors.length).toFixed(2);
-    const avgLatency = Math.round(this.monitors.reduce((acc, m) => acc + (parseInt(m.latency) || 0), 0) / this.monitors.length);
+    const avgUptime  = (this.monitors.reduce((a, m) => a + (parseFloat(m.uptime)  || 99.9), 0) / this.monitors.length).toFixed(2);
+    const avgLatency = Math.round(this.monitors.reduce((a, m) => a + (parseInt(m.latency) || 0), 0) / this.monitors.length);
 
-    if (this.uptimeMetricEl) this.uptimeMetricEl.textContent = `${avgUptime}%`;
-    if (this.latencyMetricEl) this.latencyMetricEl.textContent = `${avgLatency} ms`;
-    if (this.monitorsCountEl) this.monitorsCountEl.textContent = this.monitors.length;
-    if (this.incidentsCountEl) this.incidentsCountEl.textContent = this.incidents.length;
+    if (this.uptimeEl)   this.uptimeEl.textContent   = `${avgUptime}%`;
+    if (this.latencyEl)  this.latencyEl.textContent  = `${avgLatency} ms`;
+    if (this.monCountEl) this.monCountEl.textContent = this.monitors.length;
+    if (this.incCountEl) this.incCountEl.textContent = this.incidents.length;
   }
 
-  renderMonitors() {
-    if (!this.categoriesContainerEl) return;
-    this.categoriesContainerEl.innerHTML = '';
+  _buildBars(history) {
+    if (!history?.length) return '';
+    return history.map(h => `
+      <div class="bar ${h.status}" data-tip="Day ${h.day}: ${h.status} (${h.latency}ms)"></div>
+    `).join('');
+  }
 
-    const categoriesMap = {};
-    this.monitors.forEach(mon => {
-      if (this.filterSearch && !mon.name.toLowerCase().includes(this.filterSearch) && !mon.target.toLowerCase().includes(this.filterSearch)) {
-        return;
-      }
-      if (this.filterCategory !== 'all' && mon.category !== this.filterCategory) {
-        return;
-      }
+  _uptimeClass(pct) {
+    if (pct < 95) return 'outage';
+    if (pct < 99) return 'degraded';
+    return '';
+  }
 
-      if (!categoriesMap[mon.category]) {
-        categoriesMap[mon.category] = [];
-      }
-      categoriesMap[mon.category].push(mon);
+  _renderMonitors() {
+    if (!this.catsEl) return;
+    this.catsEl.innerHTML = '';
+
+    // Filter
+    const filtered = this.monitors.filter(mon => {
+      const matchText = !this.filterText ||
+        mon.name.toLowerCase().includes(this.filterText) ||
+        mon.target.toLowerCase().includes(this.filterText);
+      const matchCat  = this.filterCat === 'all' || mon.category === this.filterCat;
+      return matchText && matchCat;
     });
 
-    if (Object.keys(categoriesMap).length === 0) {
-      this.categoriesContainerEl.innerHTML = `
-        <div style="text-align:center; padding: 3rem; color: var(--text-muted);">
-          No monitors found matching your filter criteria.
-        </div>
-      `;
+    if (!filtered.length) {
+      this.catsEl.innerHTML = `<div class="empty-state">No services match your filter.</div>`;
       return;
     }
 
-    for (let catName in categoriesMap) {
-      const catMonitors = categoriesMap[catName];
-      const catSection = document.createElement('div');
-      catSection.className = 'category-group';
+    // Group by category
+    const cats = {};
+    filtered.forEach(mon => {
+      if (!cats[mon.category]) cats[mon.category] = [];
+      cats[mon.category].push(mon);
+    });
 
-      let catIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>`;
-      if (catName.includes('Core') || catName.includes('Web')) catIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.6 9h16.8M3.6 15h16.8"/></svg>`;
-      else if (catName.includes('Database')) catIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>`;
-      else if (catName.includes('Server') || catName.includes('Infra')) catIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>`;
+    for (const catName in cats) {
+      const mons    = cats[catName];
+      const hasIssue= mons.some(m => m.status !== 'operational' && m.status !== 'maintenance');
+      const group   = document.createElement('div');
+      group.className = 'cat-group';
 
-      catSection.innerHTML = `
-        <div class="category-header">
-          <div class="category-title">
-            <span class="category-icon">${catIcon}</span>
-            <span>${catName}</span>
-          </div>
-          <span class="category-status-pill">Operational</span>
-        </div>
-        <div class="monitor-list"></div>
+      const labelRow = document.createElement('div');
+      labelRow.className = 'cat-label-row';
+      labelRow.innerHTML = `
+        <span class="cat-name">${catName}</span>
+        <span class="cat-pill${hasIssue ? ' issues' : ''}">${hasIssue ? 'Issues Detected' : 'Operational'}</span>
       `;
+      group.appendChild(labelRow);
 
-      const listEl = catSection.querySelector('.monitor-list');
+      mons.forEach(mon => {
+        const row = document.createElement('div');
+        row.className = 'monitor-row';
 
-      catMonitors.forEach(mon => {
-        const monCard = document.createElement('div');
-        monCard.className = 'monitor-card';
-        
-        let typeIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>`;
-        if (mon.type === 'database') typeIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7"/></svg>`;
-        else if (mon.type === 'server') typeIcon = `<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2"/></svg>`;
+        const uptimePct = parseFloat(mon.uptime) || 99.9;
+        const uClass    = this._uptimeClass(uptimePct);
+        const slugPath  = `/s/${mon.slug || mon.id}`;
+        const barsHtml  = this._buildBars(mon.history);
 
-        const barsHtml = (mon.history || []).map(h => `
-          <div class="bar-item ${h.status}" data-tooltip="Day ${h.day}: ${h.status.toUpperCase()} (${h.latency}ms)"></div>
-        `).join('');
-
-        const slugPath = `/s/${mon.slug || mon.id}`;
-
-        const deleteButtonHtml = this.user ? `
-          <button class="btn btn-sm btn-delete-mon" data-id="${mon.id}" title="Remove Monitor" style="padding:0.2rem 0.5rem; opacity:0.6;">&times;</button>
+        const adminHtml = this.user ? `
+          <div class="mon-admin">
+            <button class="btn-xs btn-edit-mon">Edit</button>
+            <button class="btn-xs danger btn-del-mon">Remove</button>
+          </div>
         ` : '';
 
-        monCard.innerHTML = `
-          <div class="monitor-main-info">
-            <div class="monitor-identity">
-              <div class="monitor-type-icon">${typeIcon}</div>
-              <div class="monitor-name-wrap">
-                <h3><a href="${slugPath}">${mon.name}</a></h3>
-                <span class="monitor-target">${mon.target}</span>
-              </div>
-            </div>
-            <div class="monitor-status-wrap">
-              <div class="monitor-latency">
-                <span class="ms-val">${mon.latency} ms</span>
-                <span class="label">Latency</span>
-              </div>
-              <span class="status-badge ${mon.status}">
-                &bull; ${mon.status.toUpperCase()}
-              </span>
-              ${deleteButtonHtml}
-            </div>
+        row.innerHTML = `
+          <div class="mon-info">
+            <div class="mon-name"><a href="${slugPath}">${mon.name}</a></div>
+            <div class="mon-target">${mon.target} &bull; every ${mon.check_interval || 30}s</div>
           </div>
-
-          <div class="timeline-section">
-            <div class="timeline-bars-header">
-              <span>45 Days Uptime History</span>
-              <span class="uptime-percentage">${mon.uptime || 99.9}% Uptime</span>
+          <div class="mon-timeline">
+            <div class="timeline-meta">
+              <span>45 days</span>
+              <span class="uptime-pct ${uClass}">${uptimePct.toFixed(2)}%</span>
             </div>
-            <div class="timeline-bars">
-              ${barsHtml}
-            </div>
+            <div class="bars">${barsHtml}</div>
+          </div>
+          <div class="mon-right">
+            <div class="mon-latency">${mon.latency} ms</div>
+            <span class="badge ${mon.status}">${mon.status}</span>
+            ${adminHtml}
           </div>
         `;
 
         if (this.user) {
-          const delBtn = monCard.querySelector('.btn-delete-mon');
-          if (delBtn) {
-            delBtn.addEventListener('click', (e) => {
-              this.deleteMonitor(e.target.dataset.id);
-            });
-          }
+          row.querySelector('.btn-edit-mon')?.addEventListener('click', () => this._openEditModal(mon));
+          row.querySelector('.btn-del-mon')?.addEventListener('click',  () => this._deleteMonitor(mon.id, mon.name));
         }
 
-        listEl.appendChild(monCard);
+        group.appendChild(row);
       });
 
-      this.categoriesContainerEl.appendChild(catSection);
+      this.catsEl.appendChild(group);
     }
   }
 
-  renderIncidents() {
-    if (!this.incidentsContainerEl) return;
-    this.incidentsContainerEl.innerHTML = '';
+  _renderIncidents() {
+    if (!this.incsEl) return;
+    this.incsEl.innerHTML = '';
+
     if (!this.incidents.length) {
-      this.incidentsContainerEl.innerHTML = `<p style="color: var(--text-muted); font-size: 0.875rem;">No active or past incidents reported.</p>`;
+      this.incsEl.innerHTML = `<p class="incidents-empty">No incidents or maintenance notices reported.</p>`;
       return;
     }
 
     this.incidents.forEach(inc => {
-      const incCard = document.createElement('div');
-      incCard.className = 'incident-card';
-
-      const updatesHtml = inc.updates.map(u => `
-        <div class="incident-update-step">
-          <div class="step-status">${u.status}</div>
-          <div class="step-message">${u.message}</div>
-          <div class="step-time">${u.time}</div>
+      const updatesHtml = (inc.updates || []).map(u => `
+        <div class="update-entry">
+          <div class="update-status">${u.status}</div>
+          <div class="update-msg">${u.message}</div>
+          <div class="update-time">${u.time}</div>
         </div>
       `).join('');
 
-      incCard.innerHTML = `
-        <div class="incident-card-header">
-          <div class="incident-title">${inc.title}</div>
-          <div class="incident-date">${inc.date || inc.date_str}</div>
+      const el = document.createElement('div');
+      el.className = 'incident-item';
+      el.innerHTML = `
+        <div class="incident-head">
+          <div>
+            <div class="incident-title">${inc.title}</div>
+            <span class="badge ${inc.status}" style="margin-top:6px;">${inc.status}</span>
+          </div>
+          <div class="incident-date">${inc.date || inc.date_str || ''}</div>
         </div>
-        <div class="incident-timeline">
-          ${updatesHtml}
-        </div>
+        ${updatesHtml ? `<div class="incident-updates">${updatesHtml}</div>` : ''}
       `;
-
-      this.incidentsContainerEl.appendChild(incCard);
+      this.incsEl.appendChild(el);
     });
+  }
+
+  /* ── Service Detail Page ────────────────────────────────────────────── */
+  _renderServiceDetail(mon) {
+    if (!this.svcDetailEl) return;
+    document.title = `${mon.name} — tstatus.de`;
+
+    const barsHtml  = this._buildBars(mon.history);
+    const uptimePct = parseFloat(mon.uptime) || 99.9;
+
+    this.svcDetailEl.innerHTML = `
+      <div class="status-hero" style="margin-top: 32px;">
+        <div class="status-hero-inner">
+          <div>
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-3); margin-bottom:6px;">
+              ${mon.category} &bull; ${mon.type}
+            </div>
+            <h1 style="font-size:22px; font-weight:600; letter-spacing:-0.02em;">${mon.name}</h1>
+            <p style="font-family:var(--mono); font-size:12px; color:var(--text-3); margin-top:4px;">${mon.target}</p>
+          </div>
+          <span class="badge ${mon.status}">${mon.status}</span>
+        </div>
+      </div>
+
+      <div class="metrics-row" style="margin-bottom:24px;">
+        <div class="metric-cell">
+          <div class="metric-label">Response Latency</div>
+          <div class="metric-value">${mon.latency} ms</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-label">30-Day SLA</div>
+          <div class="metric-value" style="color:var(--green);">${uptimePct.toFixed(2)}%</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-label">Check Interval</div>
+          <div class="metric-value">Every ${mon.check_interval}s</div>
+        </div>
+        <div class="metric-cell">
+          <div class="metric-label">Identifier</div>
+          <div class="metric-value" style="font-size:14px; color:var(--text-2);">${mon.slug}</div>
+        </div>
+      </div>
+
+      <div style="padding: 0 0 32px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <span style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-3);">45-Day Uptime History</span>
+          <span style="font-size:12px; font-family:var(--mono); color:var(--text-3);">via Tstatus Job Engine</span>
+        </div>
+        <div class="bars" style="height:28px; gap:3px;">${barsHtml}</div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-3); margin-top:6px;">
+          <span>45 days ago</span>
+          <span>Today</span>
+        </div>
+      </div>
+
+      <p style="margin-top:8px; font-size:13px; color:var(--text-2);">
+        <a href="/" style="border-bottom:1px solid var(--border);">&larr; Back to status page</a>
+      </p>
+    `;
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  window.app = new StatusApp();
-});
+document.addEventListener('DOMContentLoaded', () => { window.app = new StatusApp(); });
