@@ -21,12 +21,15 @@ $commitHash = get_git_commit_hash();
         <a href="/" style="text-decoration:none; display:flex; align-items:center; gap:0.875rem;">
           <div class="brand-logo">T</div>
           <div class="brand-title-wrap">
-            <h1 style="color:#fff;">tstatus.de</h1>
+            <h1 style="color:var(--text-main);">tstatus.de</h1>
             <p>Ternis Statuspage &bull; Dedicated Service View</p>
           </div>
         </a>
       </div>
       <div class="header-actions">
+        <button id="btnThemeToggle" class="btn btn-sm btn-icon" title="Toggle Light/Dark Theme">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </button>
         <a href="/" class="btn btn-sm">
           &larr; Back to Main Overview
         </a>
@@ -37,13 +40,13 @@ $commitHash = get_git_commit_hash();
   <div class="container">
     
     <!-- Service Header Card -->
-    <div class="card" style="margin-bottom: 2rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem;">
+    <div class="card" style="margin-bottom: 2rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; box-shadow: var(--shadow-main);">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem;">
         <div>
           <span style="font-size:0.8125rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent-primary); font-weight:600;">
             <?= htmlspecialchars($monitor['category']) ?>
           </span>
-          <h1 style="font-size: 2rem; font-weight:700; margin:0.25rem 0 0.5rem 0; color:#fff;">
+          <h1 style="font-size: 2rem; font-weight:700; margin:0.25rem 0 0.5rem 0; color:var(--text-main);">
             <?= htmlspecialchars($monitor['name']) ?>
           </h1>
           <p style="font-family:monospace; color:var(--text-muted); font-size:0.9375rem;">
@@ -79,9 +82,9 @@ $commitHash = get_git_commit_hash();
     </div>
 
     <!-- 45-Day Detailed Timeline Card -->
-    <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; margin-bottom: 3rem;">
+    <div class="card" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 2rem; margin-bottom: 3rem; box-shadow: var(--shadow-main);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1.5rem;">
-        <h3 style="font-size: 1.25rem; font-weight:700;">45-Day Performance History</h3>
+        <h3 style="font-size: 1.25rem; font-weight:700; color:var(--text-main);">45-Day Performance History</h3>
         <span style="font-size: 0.875rem; color:var(--text-muted);">Updated in real-time</span>
       </div>
 
@@ -106,5 +109,6 @@ $commitHash = get_git_commit_hash();
 
   </div>
 
+  <script src="/app.js"></script>
 </body>
 </html>

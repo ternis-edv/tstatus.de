@@ -27,6 +27,9 @@ $commitHash = get_git_commit_hash();
         </div>
       </div>
       <div class="header-actions">
+        <button id="btnThemeToggle" class="btn btn-sm btn-icon" title="Toggle Light/Dark Theme">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </button>
         <button id="btnOpenAddMonitor" class="btn btn-sm">
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
           Add Monitor
@@ -97,7 +100,7 @@ $commitHash = get_git_commit_hash();
         </select>
       </div>
       <div style="font-size: 0.8125rem; color: var(--text-muted);">
-        Auto-refresh in <strong id="refreshTimer" style="color: var(--text-main);">30s</strong> &bull; Updated <span id="lastUpdated">14:52</span>
+        Auto-refresh in <strong id="refreshTimer" style="color: var(--text-main);">30s</strong> &bull; Updated <span id="lastUpdated">14:55</span>
       </div>
     </div>
 

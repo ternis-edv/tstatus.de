@@ -1,15 +1,14 @@
 /**
  * tstatus.de - Ternis Statuspage Application Logic
  * Powered by PHP & SQLite/MariaDB Backend API with Fallback
- * Monitors: Websites (ternis-edv.de, thosted.de, tstatic.de...), Databases, Linux Servers
+ * Features Light & Dark Theme Switching
  */
 
 const API_MONITORS = '/api/monitors.php';
 const API_INCIDENTS = '/api/incidents.php';
 const API_CHECK = '/api/check.php';
 
-const STORAGE_KEY_MONITORS = 'tstatus_monitors_v3';
-const STORAGE_KEY_INCIDENTS = 'tstatus_incidents_v3';
+const STORAGE_KEY_THEME = 'tstatus_theme_v1';
 
 class StatusApp {
   constructor() {
@@ -19,11 +18,45 @@ class StatusApp {
     this.filterCategory = 'all';
     this.autoRefreshTimer = null;
     this.secondsUntilRefresh = 30;
+    this.currentTheme = this.initTheme();
 
     this.initElements();
     this.bindEvents();
     this.fetchData();
     this.startAutoRefresh();
+  }
+
+  initTheme() {
+    const saved = localStorage.getItem(STORAGE_KEY_THEME);
+    let theme = 'dark';
+    if (saved) {
+      theme = saved;
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      theme = 'light';
+    }
+    document.documentElement.setAttribute('data-theme', theme);
+    return theme;
+  }
+
+  toggleTheme() {
+    this.currentTheme = (this.currentTheme === 'dark') ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', this.currentTheme);
+    localStorage.setItem(STORAGE_KEY_THEME, this.currentTheme);
+    this.renderThemeToggleIcon();
+  }
+
+  renderThemeToggleIcon() {
+    const btn = document.getElementById('btnThemeToggle');
+    if (!btn) return;
+    if (this.currentTheme === 'light') {
+      // Moon icon for switching to dark
+      btn.innerHTML = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>`;
+      btn.title = "Switch to Dark Mode";
+    } else {
+      // Sun icon for switching to light
+      btn.innerHTML = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>`;
+      btn.title = "Switch to Light Mode";
+    }
   }
 
   initElements() {
@@ -41,9 +74,18 @@ class StatusApp {
 
     this.addMonitorModalEl = document.getElementById('addMonitorModal');
     this.addIncidentModalEl = document.getElementById('addIncidentModal');
+
+    this.renderThemeToggleIcon();
   }
 
   bindEvents() {
+    const btnTheme = document.getElementById('btnThemeToggle');
+    if (btnTheme) {
+      btnTheme.addEventListener('click', () => {
+        this.toggleTheme();
+      });
+    }
+
     if (this.searchInputEl) {
       this.searchInputEl.addEventListener('input', (e) => {
         this.filterSearch = e.target.value.toLowerCase();
