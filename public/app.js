@@ -1,5 +1,6 @@
 /**
  * tstatus.de - Ternis Statuspage Application Logic
+ * Public Read-Only View by default with optional Admin Mode toggle.
  * Exclusively Powered by /api/v1/ REST Endpoints
  */
 
@@ -10,6 +11,7 @@ const API_INCIDENTS = `${API_V1}/incidents`;
 const API_CHECK = `${API_V1}/check`;
 
 const STORAGE_KEY_THEME = 'tstatus_theme_v1';
+const STORAGE_KEY_ADMIN = 'tstatus_admin_mode_v1';
 
 class StatusApp {
   constructor() {
@@ -20,7 +22,9 @@ class StatusApp {
     this.filterCategory = 'all';
     this.autoRefreshTimer = null;
     this.secondsUntilRefresh = 30;
+
     this.currentTheme = this.initTheme();
+    this.isAdminMode = this.initAdminMode();
 
     this.initElements();
     this.bindEvents();
@@ -50,11 +54,27 @@ class StatusApp {
     return theme;
   }
 
+  initAdminMode() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('admin') === '1') {
+      localStorage.setItem(STORAGE_KEY_ADMIN, 'true');
+      return true;
+    }
+    return localStorage.getItem(STORAGE_KEY_ADMIN) === 'true';
+  }
+
   toggleTheme() {
     this.currentTheme = (this.currentTheme === 'dark') ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', this.currentTheme);
     localStorage.setItem(STORAGE_KEY_THEME, this.currentTheme);
     this.renderThemeToggleIcon();
+  }
+
+  toggleAdminMode() {
+    this.isAdminMode = !this.isAdminMode;
+    localStorage.setItem(STORAGE_KEY_ADMIN, this.isAdminMode ? 'true' : 'false');
+    this.renderAdminControls();
+    this.renderMonitors();
   }
 
   renderThemeToggleIcon() {
@@ -66,6 +86,25 @@ class StatusApp {
     } else {
       btn.innerHTML = `<svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>`;
       btn.title = "Switch to Light Mode";
+    }
+  }
+
+  renderAdminControls() {
+    const adminGroup = document.getElementById('adminControlsGroup');
+    const adminToggleBtn = document.getElementById('btnAdminToggle');
+
+    if (adminGroup) {
+      adminGroup.style.display = this.isAdminMode ? 'flex' : 'none';
+    }
+
+    if (adminToggleBtn) {
+      if (this.isAdminMode) {
+        adminToggleBtn.style.color = 'var(--status-operational)';
+        adminToggleBtn.title = 'Admin Mode Active (Click to lock)';
+      } else {
+        adminToggleBtn.style.color = 'var(--text-main)';
+        adminToggleBtn.title = 'Unlock Admin Mode';
+      }
     }
   }
 
@@ -88,12 +127,18 @@ class StatusApp {
     this.addIncidentModalEl = document.getElementById('addIncidentModal');
 
     this.renderThemeToggleIcon();
+    this.renderAdminControls();
   }
 
   bindEvents() {
     const btnTheme = document.getElementById('btnThemeToggle');
     if (btnTheme) {
       btnTheme.addEventListener('click', () => this.toggleTheme());
+    }
+
+    const btnAdmin = document.getElementById('btnAdminToggle');
+    if (btnAdmin) {
+      btnAdmin.addEventListener('click', () => this.toggleAdminMode());
     }
 
     if (this.searchInputEl) {
@@ -496,6 +541,10 @@ class StatusApp {
 
         const slugPath = `/s/${mon.slug || mon.id}`;
 
+        const deleteButtonHtml = this.isAdminMode ? `
+          <button class="btn btn-sm btn-delete-mon" data-id="${mon.id}" title="Remove Monitor" style="padding:0.2rem 0.5rem; opacity:0.6;">&times;</button>
+        ` : '';
+
         monCard.innerHTML = `
           <div class="monitor-main-info">
             <div class="monitor-identity">
@@ -513,7 +562,7 @@ class StatusApp {
               <span class="status-badge ${mon.status}">
                 &bull; ${mon.status.toUpperCase()}
               </span>
-              <button class="btn btn-sm btn-delete-mon" data-id="${mon.id}" title="Remove Monitor" style="padding:0.2rem 0.5rem; opacity:0.6;">&times;</button>
+              ${deleteButtonHtml}
             </div>
           </div>
 
@@ -528,9 +577,14 @@ class StatusApp {
           </div>
         `;
 
-        monCard.querySelector('.btn-delete-mon').addEventListener('click', (e) => {
-          this.deleteMonitor(e.target.dataset.id);
-        });
+        if (this.isAdminMode) {
+          const delBtn = monCard.querySelector('.btn-delete-mon');
+          if (delBtn) {
+            delBtn.addEventListener('click', (e) => {
+              this.deleteMonitor(e.target.dataset.id);
+            });
+          }
+        }
 
         listEl.appendChild(monCard);
       });
